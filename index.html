@@ -1,0 +1,1588 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>ThumbCodeEditor</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #ffffff;
+      --panel: #ffffff;
+      --panel2: #f6f8fa;
+      --line: #d0d7de;
+      --text: #1f2328;
+      --muted: #59636e;
+      --accent: #0969da;
+      --ok: #116329;
+      --warn: #8a4b00;
+      --bad: #b42318;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --app-height: 100dvh;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      -webkit-text-size-adjust: 100%;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+      touch-action: manipulation;
+    }
+    button, textarea, input, select { font: inherit; }
+    button { -webkit-user-select: none; user-select: none; }
+
+    #app {
+      height: var(--app-height);
+      display: grid;
+      /* Keyboard helper is deliberately at the TOP so the iPhone keyboard never covers it. */
+      grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+      padding-top: var(--safe-top);
+      background: var(--bg);
+    }
+
+    .topbar {
+      min-height: 50px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px max(8px, var(--safe-right)) 6px max(8px, var(--safe-left));
+      background: rgba(255, 255, 255, .98);
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+    .brand {
+      min-width: 0;
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.1;
+      padding-left: 2px;
+    }
+    .brand strong { font-size: 14px; letter-spacing: .1px; color: #111827; }
+    .brand span { margin-top: 3px; font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+
+    .btn {
+      height: 38px;
+      border: 1px solid #c7cdd4;
+      border-radius: 10px;
+      padding: 0 11px;
+      color: #1f2328;
+      background: #f6f8fa;
+      font-weight: 750;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      box-shadow: 0 1px 1px rgba(31,35,40,.04);
+    }
+    .btn:active { transform: translateY(1px); background: #eaeef2; }
+    .btn.primary { color: #ffffff; background: #0969da; border-color: #0969da; }
+    .btn.primary:active { background: #075bbd; }
+    .btn.good { color: #ffffff; background: #087a4b; border-color: #087a4b; }
+    .btn.good:active { background: #066b41; }
+    .btn.danger { color: #b42318; background: #fff5f5; border-color: #f0b8b5; }
+    .btn.danger:active { background: #ffe3e1; }
+    .btn.icon { width: 38px; padding: 0; }
+    .btn[disabled] { opacity: .45; }
+
+    /* Coding keys live directly below the action bar, not at the bottom. */
+    .keybar {
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px max(7px, var(--safe-right)) 5px max(7px, var(--safe-left));
+      background: #f6f8fa;
+      border-bottom: 1px solid var(--line);
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      touch-action: pan-x;
+      -webkit-overflow-scrolling: touch;
+    }
+    .keybar::-webkit-scrollbar { display: none; }
+    .key {
+      min-width: 38px;
+      height: 36px;
+      padding: 0 10px;
+      flex: 0 0 auto;
+      border-radius: 9px;
+      border: 1px solid #b8c0c8;
+      background: #ffffff;
+      color: #111827;
+      box-shadow: 0 1px 2px rgba(31,35,40,.07);
+      font: 750 15px ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .key.wide { min-width: 58px; font-size: 12px; }
+    .key:active { background: #dfe6ed; transform: translateY(1px); }
+    .keygroup { display:flex; align-items:center; gap:6px; flex:0 0 auto; }
+    .key-separator { width:1px; height:26px; flex:0 0 1px; background:#c7cdd4; margin:0 2px; }
+    .key.action { background:#eef6ff; border-color:#9bc2ee; color:#0b4a8b; }
+    .key.action:active { background:#dbeeff; }
+
+    .language-tools {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px max(8px, var(--safe-right)) 4px max(8px, var(--safe-left));
+      background: #eef6ff;
+      border-top: 1px solid #c8ddf4;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .language-tools[hidden] { display: none !important; }
+    .language-tools::-webkit-scrollbar { display: none; }
+    .language-tools-label {
+      flex: 0 0 auto;
+      color: #0b4a8b;
+      font: 800 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+      margin-right: 2px;
+    }
+    .language-tools .btn { height: 34px; flex: 0 0 auto; }
+
+    #editor-wrap { min-height: 0; position: relative; overflow: hidden; background: #ffffff; }
+    #editor { height: 100%; }
+    .cm-editor { height: 100%; background: #ffffff; color: #1f2328; }
+    .cm-scroller {
+      height: 100%;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace !important;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      background: #ffffff;
+    }
+    .cm-content {
+      padding-bottom: 32px !important;
+      caret-color: #111827;
+      color: #1f2328;
+    }
+    .cm-cursor, .cm-dropCursor { border-left-color: #111827 !important; }
+    .cm-gutters {
+      background: #f6f8fa !important;
+      border-right: 1px solid #d8dee4 !important;
+      color: #66707b !important;
+    }
+    .cm-activeLineGutter { background: #eaeef2 !important; color: #24292f !important; }
+    .cm-activeLine { background: rgba(9, 105, 218, .055) !important; }
+    .cm-selectionBackground, .cm-content ::selection { background: rgba(84, 174, 255, .32) !important; }
+    .cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground { background: rgba(84, 174, 255, .34) !important; }
+    .cm-matchingBracket { background: #fff3bf !important; outline: 1px solid #b08800; color: #111827 !important; }
+    .cm-tooltip { color: #1f2328 !important; background: #ffffff !important; border-color: #afb8c1 !important; }
+    .cm-tooltip-autocomplete {
+      max-width: min(92vw, 620px) !important;
+      border: 1px solid #afb8c1 !important;
+      background: #ffffff !important;
+      box-shadow: 0 6px 20px rgba(31,35,40,.15);
+    }
+    .cm-tooltip-autocomplete > ul { max-height: 34vh !important; font-size: 14px !important; }
+    .cm-tooltip-autocomplete > ul > li { color: #1f2328 !important; }
+    .cm-tooltip-autocomplete > ul > li[aria-selected] { background: #0969da !important; color: #ffffff !important; }
+    .source-search {
+      display:none; align-items:center; gap:5px;
+      padding:5px max(7px, var(--safe-right)) 5px max(7px, var(--safe-left));
+      border-bottom:1px solid var(--line); background:#fffbea;
+    }
+    .source-search.open { display:flex; }
+    .source-search input {
+      min-width:0; flex:1 1 auto; height:36px; padding:0 9px;
+      border:1px solid #9aa4af; border-radius:8px; background:#fff; color:#1f2328;
+      font:16px ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .search-count { min-width:44px; text-align:center; color:#59636e; font:11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .search-nav { width:36px; height:36px; padding:0; border:1px solid #b8c0c8; border-radius:8px; background:#fff; color:#1f2328; font-weight:800; }
+    .search-nav:active { background:#eaeef2; }
+
+    .statusbar {
+      height: calc(28px + var(--safe-bottom));
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 max(9px, var(--safe-right)) var(--safe-bottom) max(9px, var(--safe-left));
+      border-top: 1px solid var(--line);
+      background: #f6f8fa;
+      color: var(--muted);
+      font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .statusbar::-webkit-scrollbar { display:none; }
+    .status-ok { color: var(--ok); }
+    .status-warn { color: var(--warn); }
+    .status-bad { color: var(--bad); }
+
+    .drawer {
+      position: fixed;
+      z-index: 20;
+      left: 0;
+      right: 0;
+      bottom: calc(28px + var(--safe-bottom));
+      height: min(48vh, 420px);
+      background: #ffffff;
+      border-top: 1px solid #afb8c1;
+      box-shadow: 0 -10px 30px rgba(31,35,40,.18);
+      display: none;
+      grid-template-rows: 41px minmax(0, 1fr);
+    }
+    .drawer.open { display: grid; }
+    .tabs { display: flex; align-items: center; gap: 2px; padding: 4px 6px; border-bottom: 1px solid var(--line); background:#f6f8fa; }
+    .tab {
+      height: 32px;
+      padding: 0 11px;
+      border: 0;
+      border-radius: 8px;
+      color: #59636e;
+      background: transparent;
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .tab.active { color: #ffffff; background: #0969da; }
+    .tabs .spacer { flex: 1; }
+    .pane { display:none; min-height: 0; }
+    .pane.active { display:block; height:100%; }
+    #stdin {
+      width: 100%; height: 100%; resize: none; border: 0; outline: 0;
+      padding: 12px; background: #ffffff; color: #1f2328;
+      font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+      autocorrect: off;
+    }
+    #output, #errors {
+      margin: 0; height: 100%; overflow: auto; padding: 12px;
+      white-space: pre-wrap; overflow-wrap: anywhere;
+      color: #1f2328; background: #ffffff;
+      font: 13px/1.48 ui-monospace, SFMono-Regular, Menlo, monospace;
+      -webkit-overflow-scrolling: touch;
+    }
+    #errors { color: #9b1c1c; background:#fffafa; }
+
+    .toast {
+      position: fixed; z-index: 50; left: 50%; top: calc(var(--safe-top) + 103px);
+      max-width: 86vw; transform: translateX(-50%) translateY(-8px);
+      opacity: 0; pointer-events: none;
+      padding: 9px 13px; border-radius: 999px;
+      background: rgba(31,35,40,.96); border: 1px solid #1f2328;
+      color: #ffffff; font-size: 12px; font-weight: 750;
+      box-shadow: 0 4px 14px rgba(31,35,40,.18);
+      transition: .18s ease;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    dialog {
+      width: min(92vw, 560px); max-height: 82dvh; overflow:auto;
+      color: #1f2328; background: #ffffff; border: 1px solid #afb8c1;
+      border-radius: 16px; padding: 0;
+      box-shadow: 0 14px 45px rgba(31,35,40,.22);
+    }
+    dialog::backdrop { background: rgba(31,35,40,.38); backdrop-filter: blur(2px); }
+    .modal-head { position: sticky; top:0; display:flex; align-items:center; padding: 12px 14px; background:#ffffff; border-bottom:1px solid var(--line); }
+    .modal-head strong { flex:1; }
+    .modal-body { padding: 14px; color:#343b43; font-size:13px; line-height:1.6; }
+    .envbox { margin: 8px 0 14px; padding: 10px; border:1px solid #d0d7de; border-radius:10px; background:#f6f8fa; overflow:auto; }
+    .envbox code { white-space: pre-wrap; font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; color:#0b4a8b; }
+    .setting { display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; padding:10px 0; border-bottom:1px solid #e5e7eb; }
+    .setting:last-child { border:0; }
+    .setting small { display:block; color:var(--muted); margin-top:2px; }
+    select, input[type="number"], input[type="url"], input[type="text"] { color:#1f2328; background:#ffffff; border:1px solid #afb8c1; border-radius:8px; padding:7px 8px; }
+    .setting.stack { grid-template-columns: 1fr; }
+    .setting.stack > input { width:100%; min-width:0; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .setting .note { color:var(--muted); font-size:11px; line-height:1.45; margin-top:4px; }
+    .key-settings-list { display:flex; flex-direction:column; gap:7px; margin-top:7px; }
+    .key-settings-head { display:grid; grid-template-columns:72px minmax(0,1fr) 74px 34px; gap:6px; color:var(--muted); font-size:10px; line-height:1.2; padding:0 2px; }
+    .key-setting-row { display:grid; grid-template-columns:72px minmax(0,1fr) 74px 34px; gap:6px; align-items:center; }
+    .key-setting-row input { width:100%; min-width:0; font:13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .key-setting-row select { width:74px; padding-left:5px; padding-right:4px; }
+    .mini-btn { height:34px; border:1px solid #c7cdd4; border-radius:8px; background:#f6f8fa; color:#1f2328; font-weight:700; }
+    .setting-actions { display:flex; flex-wrap:wrap; gap:7px; margin-top:8px; }
+    @media (max-width: 430px) {
+      .key-settings-head, .key-setting-row { grid-template-columns:62px minmax(0,1fr) 66px 32px; gap:4px; }
+      .key-setting-row input, .key-setting-row select { font-size:12px; padding:6px 5px; }
+    }
+
+    @media (max-width: 470px) {
+      .topbar { gap: 5px; }
+      .brand span { display:none; }
+      .btn { padding:0 9px; }
+      .btn .label-optional { display:none; }
+    }
+    @media (max-width: 365px) {
+      .brand strong { font-size:12px; }
+      .btn { height:36px; padding:0 7px; font-size:12px; }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/typescript@5.9.2/lib/typescript.js"></script>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <strong>ThumbCodeEditor</strong>
+      <span id="envLabel">TS 5.9.2 · Node.js 22.19.0 target</span>
+    </div>
+    <button class="btn icon" id="topBtn" title="ソース先頭へ" aria-label="ソース先頭へ">↑</button>
+    <button class="btn icon" id="searchBtn" title="ソース内検索" aria-label="ソース内検索">⌕</button>
+    <button class="btn good" id="copyBtn" title="全文コピー">⧉ <span class="label-optional">Copy</span></button>
+    <button class="btn icon" id="resetBtn" title="GitHubの最新テンプレートにリセット" aria-label="GitHubの最新テンプレートにリセット">↺</button>
+    <button class="btn icon" id="settingsBtn" title="設定">⚙</button>
+  </header>
+
+  <nav class="keybar" aria-label="coding keys">
+    <div id="primaryKeys" class="keygroup" aria-label="custom primary keys"></div>
+    <span class="key-separator" aria-hidden="true"></span>
+    <div class="keygroup" aria-label="editor actions">
+      <button class="key action" data-action="left">←</button>
+      <button class="key action" data-action="right">→</button>
+      <button class="key wide action" data-action="undo">Undo</button>
+      <button class="key wide action" data-action="redo">Redo</button>
+      <button class="key wide action" data-action="complete">補完</button>
+      <button class="key wide action" data-action="tab">Tab</button>
+      <button class="key wide action" data-action="outdent">⇤Tab</button>
+    </div>
+    <span class="key-separator" aria-hidden="true"></span>
+    <div id="secondaryKeys" class="keygroup" aria-label="custom secondary keys"></div>
+  </nav>
+
+  <div id="sourceSearch" class="source-search" role="search">
+    <input id="searchQuery" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" writingsuggestions="false" placeholder="ソース内検索" />
+    <span id="searchCount" class="search-count">0/0</span>
+    <button class="search-nav" type="button" id="searchPrev" title="前の一致">↑</button>
+    <button class="search-nav" type="button" id="searchNext" title="次の一致">↓</button>
+    <button class="search-nav" type="button" id="searchClose" title="検索を閉じる">×</button>
+  </div>
+
+  <main id="editor-wrap"><div id="editor"></div></main>
+
+  <div id="languageTools" class="language-tools" aria-label="TypeScript tools">
+    <span class="language-tools-label">TypeScript</span>
+    <button class="btn primary" id="runBtn" title="実行">▶ 実行</button>
+    <button class="btn" id="checkBtn" title="TypeScript型チェック">✓ 型チェック</button>
+    <button class="btn" id="panelBtn" title="入力・出力">⌨ 入力・出力</button>
+  </div>
+
+  <div class="statusbar">
+    <span id="saveState" class="status-ok">● saved</span>
+    <span id="posState">Ln 1, Col 1</span>
+    <span id="sizeState">1 line · 0 chars</span>
+    <span id="languageState">TypeScript</span>
+    <span id="runState">browser debug</span>
+  </div>
+
+
+</div>
+
+<section id="drawer" class="drawer">
+  <div class="tabs">
+    <button class="tab active" data-pane="inputPane">入力</button>
+    <button class="tab" data-pane="outputPane">出力</button>
+    <button class="tab" data-pane="errorPane">エラー</button>
+    <span class="spacer"></span>
+    <button class="btn" id="stopBtn" disabled>■ 停止</button>
+    <button class="btn icon" id="closeDrawer">×</button>
+  </div>
+  <div id="inputPane" class="pane active"><textarea id="stdin" spellcheck="false" autocapitalize="none" autocomplete="off" autocorrect="off" writingsuggestions="false" placeholder="標準入力を貼り付け"></textarea></div>
+  <div id="outputPane" class="pane"><pre id="output">ここに実行結果が表示されます。</pre></div>
+  <div id="errorPane" class="pane"><pre id="errors">エラーはありません。</pre></div>
+</section>
+
+<div id="toast" class="toast"></div>
+
+<dialog id="settings">
+  <div class="modal-head"><strong>設定 / ThumbCodeEditor</strong><button class="btn icon" id="settingsClose">×</button></div>
+  <div class="modal-body">
+    <div class="setting">
+      <div>フォントサイズ<small>iPhoneでは 15〜17px 推奨</small></div>
+      <input id="fontSize" type="number" min="11" max="24" step="1" value="15" />
+    </div>
+    <div class="setting">
+      <div>Tab幅<small>インデント幅</small></div>
+      <select id="tabSize"><option value="2" selected>2</option><option value="4">4</option></select>
+    </div>
+    <div class="setting">
+      <div>折り返し<small>長い行を横スクロールするか</small></div>
+      <select id="wrap"><option value="off" selected>OFF</option><option value="on">ON</option></select>
+    </div>
+    <div class="setting">
+      <div>言語モード<small>TypeScriptのみ実行・型チェック対応。専用操作はエディタ下部に表示します。その他の言語は編集・検索・コピー用です。</small></div>
+      <select id="language">
+        <option value="typescript" selected>TypeScript</option>
+        <option value="c">C</option>
+        <option value="cpp">C++</option>
+        <option value="csharp">C#</option>
+        <option value="go">Go</option>
+        <option value="java">Java</option>
+        <option value="javascript">JavaScript</option>
+        <option value="kotlin">Kotlin</option>
+        <option value="php">PHP</option>
+        <option value="python">Python</option>
+        <option value="ruby">Ruby</option>
+        <option value="rust">Rust</option>
+        <option value="swift">Swift</option>
+        <option value="plaintext">Text</option>
+      </select>
+    </div>
+    <div class="setting stack">
+      <div>
+        入力ボタン
+        <small>文字を挿入するボタンだけを自由に変更できます。表示名と実際に入力する文字列は別々に設定でき、<code>=&gt;</code> や <code>for (...)</code> のような複数文字にも対応します。</small>
+        <div class="note">「前半」は ← / → / Undo / Redo / 補完 より前、「後半」はそれらより後ろに表示します。Undo / Redo などの編集操作は固定の別枠です。</div>
+      </div>
+      <div class="key-settings-head"><span>表示</span><span>入力文字列</span><span>位置</span><span></span></div>
+      <div id="customKeysEditor" class="key-settings-list"></div>
+      <div class="setting-actions">
+        <button class="btn" type="button" id="addCustomKey">＋ ボタン追加</button>
+        <button class="btn" type="button" id="resetCustomKeys">初期値に戻す</button>
+      </div>
+    </div>
+    <div class="setting stack">
+      <div>
+        テンプレートURL
+        <small>空欄なら ↺ ボタンでソース全削除。URLを設定すると、そのURLの最新内容へリセットします。</small>
+        <div class="note">GitHub の <code>.../blob/...</code> URL は自動で raw URL に変換します。その他のURLは配信元がブラウザからの取得（CORS）を許可している必要があります。</div>
+      </div>
+      <input id="templateUrl" type="url" inputmode="url" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="https://github.com/user/repo/blob/main/template.ts" />
+    </div>
+
+    <h3>TypeScript 実行環境</h3>
+    <p>提出先として想定しているのは <b>TypeScript 5.9 / tsc 5.9.2 / Node.js 22.19.0</b> です。</p>
+    <div class="envbox"><code>tsc Main.ts --target ESNext --moduleResolution nodenext --module NodeNext --noEmitOnError --pretty true
+
+→ sh node.sh {memory:kb} Main.js ONLINE_JUDGE ATCODER</code></div>
+    <p><b>✓ 型チェック:</b> TypeScript 5.9.2 のコンパイラAPIで、AtCoder と同じ <code>target ESNext / moduleResolution NodeNext / module NodeNext / noEmitOnError</code> を使って診断します。標準ライブラリは初回だけ CDN から読み込みます。Node 型は競プロでよく使う <code>require/process/fs</code> を中心にした軽量定義です。</p>
+    <p><b>▶ 実行:</b> TypeScript 5.9.2 で同じ target/module/moduleResolution を指定して JavaScript に変換し、Web Worker 内で実行します。<code>fs.readFileSync(0, "utf8")</code>、<code>process.stdout.write</code>、<code>console.log</code> など競プロでよく使うAPIを簡易互換しています。</p>
+    <p style="color:#8a4b00"><b>注意:</b> Safari の中で本物の Node.js 22.19.0 を起動しているわけではありません。Node固有ライブラリ、ファイルアクセス、ネイティブ挙動、厳密な実行速度は AtCoder と異なります。</p>
+    <p>ソースは端末内に自動保存されます。全文コピーは CodeMirror の DOM を全選択せず、内部ドキュメント文字列を直接 Clipboard API に渡すため、1万行超でも軽く動作する設計です。</p>
+    <p><b>⌕ ソース内検索:</b> 検索ボタンから検索欄を開き、次/前の一致箇所へ移動できます。</p>
+    <p><b>↺ リセット:</b> 設定のテンプレートURLが空ならソースを全削除します。URLが設定されている場合はそのURLから最新版を取得します。取得成功時はURLごとの端末内キャッシュも更新し、通信失敗時は同じURLで最後に取得できた内容へフォールバックします。リセット直後は Undo で元の編集内容へ戻せます。</p>
+  </div>
+</dialog>
+
+<script type="module">
+  import { basicSetup } from "https://esm.sh/codemirror@6.0.2";
+  import { EditorView } from "https://esm.sh/@codemirror/view@6.43.11";
+  import { EditorState, Compartment } from "https://esm.sh/@codemirror/state@6.7.4";
+  import { javascript, javascriptLanguage } from "https://esm.sh/@codemirror/lang-javascript@6.2.5";
+  import { cpp } from "https://esm.sh/@codemirror/lang-cpp@6.0.3";
+  import { python } from "https://esm.sh/@codemirror/lang-python@6.2.1";
+  import { indentMore, indentLess, undo, redo } from "https://esm.sh/@codemirror/commands@6.11.0";
+  import { startCompletion, completeFromList } from "https://esm.sh/@codemirror/autocomplete@6.20.3";
+  import { HighlightStyle, syntaxHighlighting, StreamLanguage } from "https://esm.sh/@codemirror/language@6.11.3";
+  import { c as cLegacy, java as javaLegacy, csharp as csharpLegacy, kotlin as kotlinLegacy } from "https://esm.sh/@codemirror/legacy-modes@6.5.3/mode/clike";
+  import { rust as rustLegacy } from "https://esm.sh/@codemirror/legacy-modes@6.5.3/mode/rust";
+  import { go as goLegacy } from "https://esm.sh/@codemirror/legacy-modes@6.5.3/mode/go";
+  import { swift as swiftLegacy } from "https://esm.sh/@codemirror/legacy-modes@6.5.3/mode/swift";
+  import { ruby as rubyLegacy } from "https://esm.sh/@codemirror/legacy-modes@6.5.3/mode/ruby";
+  import { php } from "https://esm.sh/@codemirror/lang-php@6.0.2";
+  import { tags } from "https://esm.sh/@lezer/highlight@1.2.1";
+
+  const ts = globalThis.ts;
+
+  const STORAGE_CODE = "atcoder-mobile-ts:code:v1";
+  const STORAGE_INPUT = "atcoder-mobile-ts:stdin:v1";
+  const STORAGE_SETTINGS = "atcoder-mobile-ts:settings:v1";
+  const STORAGE_TEMPLATE_CACHE = "atcoder-mobile-ts:template-cache:v2";
+
+  const storage = {
+    get(key) { try { return localStorage.getItem(key); } catch { return null; } },
+    set(key, value) { try { localStorage.setItem(key, value); return true; } catch { return false; } },
+  };
+
+  const starter = "";
+
+  const savedSettings = (() => {
+    try { return JSON.parse(storage.get(STORAGE_SETTINGS) || "{}"); }
+    catch { return {}; }
+  })();
+  const allowedLanguages = new Set([
+    "typescript", "c", "cpp", "csharp", "go", "java", "javascript", "kotlin",
+    "php", "python", "ruby", "rust", "swift", "plaintext"
+  ]);
+
+  // Insertion keys are user-customizable. Editor actions (cursor, Undo/Redo, completion, Tab) stay fixed.
+  const DEFAULT_CUSTOM_KEYS = [
+    { id:"paren-l", label:"(", text:"(", zone:"primary" },
+    { id:"paren-r", label:")", text:")", zone:"primary" },
+    { id:"brace-l", label:"{", text:"{", zone:"primary" },
+    { id:"brace-r", label:"}", text:"}", zone:"primary" },
+    { id:"bracket-l", label:"[", text:"[", zone:"primary" },
+    { id:"bracket-r", label:"]", text:"]", zone:"primary" },
+    { id:"semicolon", label:";", text:";", zone:"primary" },
+    { id:"arrow", label:"=>", text:" => ", zone:"primary" },
+    { id:"double-quote", label:'"', text:'"', zone:"primary" },
+    { id:"comma", label:",", text:",", zone:"secondary" },
+    { id:"dot", label:".", text:".", zone:"secondary" },
+    { id:"equal", label:"=", text:"=", zone:"secondary" },
+    { id:"bang", label:"!", text:"!", zone:"secondary" },
+    { id:"lt", label:"<", text:"<", zone:"secondary" },
+    { id:"gt", label:">", text:">", zone:"secondary" },
+    { id:"single-quote", label:"'", text:"'", zone:"secondary" },
+  ];
+  const cloneDefaultKeys = () => DEFAULT_CUSTOM_KEYS.map(k => ({...k}));
+  function normalizeCustomKeys(value) {
+    if (!Array.isArray(value)) return cloneDefaultKeys();
+    const out = [];
+    for (const raw of value) {
+      if (!raw || typeof raw !== "object") continue;
+      const text = typeof raw.text === "string" ? raw.text : "";
+      const label = typeof raw.label === "string" ? raw.label : text;
+      if (!label && !text) continue;
+      out.push({
+        id: typeof raw.id === "string" && raw.id ? raw.id : `custom-${Date.now()}-${out.length}`,
+        label: label || "·",
+        text,
+        zone: raw.zone === "primary" ? "primary" : "secondary",
+      });
+    }
+    return out;
+  }
+
+  const settings = {
+    fontSize: Number(savedSettings.fontSize || 15),
+    tabSize: Number(savedSettings.tabSize || 2),
+    wrap: savedSettings.wrap === true,
+    language: allowedLanguages.has(savedSettings.language) ? savedSettings.language : "typescript",
+    templateUrl: typeof savedSettings.templateUrl === "string" ? savedSettings.templateUrl : "",
+    customKeys: normalizeCustomKeys(savedSettings.customKeys),
+  };
+
+  const fontComp = new Compartment();
+  const tabComp = new Compartment();
+  const wrapComp = new Compartment();
+  const languageComp = new Compartment();
+
+  // High-contrast LIGHT syntax theme for iPhone displays.
+  // Colors are intentionally dark and moderately saturated so each token remains readable on white.
+  const brightSyntax = HighlightStyle.define([
+    { tag: tags.comment, color: "#5F6368", fontStyle: "italic" },
+    { tag: [tags.keyword, tags.controlKeyword, tags.moduleKeyword], color: "#6F2DA8", fontWeight: "700" },
+    { tag: [tags.typeName, tags.className, tags.namespace], color: "#0B57D0", fontWeight: "600" },
+    { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: "#005A9C", fontWeight: "650" },
+    { tag: [tags.definition(tags.variableName), tags.local(tags.variableName)], color: "#202124" },
+    { tag: [tags.variableName, tags.propertyName], color: "#202124" },
+    { tag: [tags.string, tags.special(tags.string)], color: "#146C2E" },
+    { tag: [tags.number, tags.integer, tags.float], color: "#8A4B00" },
+    { tag: [tags.bool, tags.null], color: "#B3261E", fontWeight: "700" },
+    { tag: [tags.operator, tags.punctuation, tags.separator], color: "#303136" },
+    { tag: [tags.regexp, tags.escape], color: "#006B5F" },
+    { tag: [tags.labelName, tags.atom], color: "#7A1FA2" },
+    { tag: tags.meta, color: "#5E35B1" },
+    { tag: tags.invalid, color: "#FFFFFF", backgroundColor: "#B42318" },
+  ]);
+
+  const atcoderCompletions = completeFromList([
+    {label:"console.log", type:"function", apply:"console.log()", detail:"stdout"},
+    {label:"process.stdout.write", type:"function", apply:"process.stdout.write()"},
+    {label:"fs.readFileSync", type:"function", apply:'fs.readFileSync(0, "utf8")'},
+    {label:"Array.from", type:"function"},
+    {label:"Array.fill", type:"function"},
+    {label:"Math.min", type:"function"},
+    {label:"Math.max", type:"function"},
+    {label:"Math.floor", type:"function"},
+    {label:"BigInt", type:"function"},
+    {label:"nextNum", type:"function", detail:"template"},
+    {label:"nextNums", type:"function", detail:"template"},
+    {label:"intDiv", type:"function", detail:"template"},
+    {label:"lowerBound", type:"function", detail:"template"},
+    {label:"upperBound", type:"function", detail:"template"},
+    {label:"PriorityQueue", type:"class", detail:"template"},
+    {label:"Segtree", type:"class", detail:"template"},
+    {label:"FenwickTree", type:"class", detail:"template"},
+    {label:"UnionFind", type:"class", detail:"template"},
+  ]);
+
+  function languageExtension(language) {
+    if (language === "typescript") {
+      return [
+        javascript({ typescript: true }),
+        javascriptLanguage.data.of({ autocomplete: atcoderCompletions }),
+      ];
+    }
+    if (language === "javascript") return javascript();
+    if (language === "cpp") return cpp();
+    if (language === "python") return python();
+    if (language === "php") return php();
+    if (language === "java") return StreamLanguage.define(javaLegacy);
+    if (language === "rust") return StreamLanguage.define(rustLegacy);
+    if (language === "go") return StreamLanguage.define(goLegacy);
+    if (language === "csharp") return StreamLanguage.define(csharpLegacy);
+    if (language === "kotlin") return StreamLanguage.define(kotlinLegacy);
+    if (language === "c") return StreamLanguage.define(cLegacy);
+    if (language === "swift") return StreamLanguage.define(swiftLegacy);
+    if (language === "ruby") return StreamLanguage.define(rubyLegacy);
+    return [];
+  }
+
+  const languageLabels = {
+    typescript: "TypeScript",
+    c: "C",
+    cpp: "C++",
+    csharp: "C#",
+    go: "Go",
+    java: "Java",
+    javascript: "JavaScript",
+    kotlin: "Kotlin",
+    php: "PHP",
+    python: "Python",
+    ruby: "Ruby",
+    rust: "Rust",
+    swift: "Swift",
+    plaintext: "Text",
+  };
+
+  const themeFor = (size) => EditorView.theme({
+    "&": { fontSize: size + "px" },
+    ".cm-content": { lineHeight: "1.48", paddingTop: "8px" },
+    ".cm-gutterElement": { lineHeight: "1.48" },
+    ".cm-cursor": { borderLeftWidth: "2px" },
+  });
+
+  let saveTimer = null;
+  const saveState = document.getElementById("saveState");
+  const posState = document.getElementById("posState");
+  const sizeState = document.getElementById("sizeState");
+
+  const initialCode = storage.get(STORAGE_CODE) ?? starter;
+
+  const view = new EditorView({
+    state: EditorState.create({
+      doc: initialCode,
+      extensions: [
+        basicSetup,
+        languageComp.of(languageExtension(settings.language)),
+        syntaxHighlighting(brightSyntax),
+        EditorView.contentAttributes.of({
+          autocorrect: "off",
+          autocapitalize: "none",
+          autocomplete: "off",
+          spellcheck: "false",
+          writingsuggestions: "false",
+          lang: "en",
+          enterkeyhint: "enter",
+        }),
+        EditorView.updateListener.of(update => {
+          if (update.docChanged) {
+            saveState.textContent = "● saving…";
+            saveState.className = "status-warn";
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(() => {
+              try {
+                if (!storage.set(STORAGE_CODE, update.state.doc.toString())) throw new Error("storage unavailable");
+                saveState.textContent = "● saved";
+                saveState.className = "status-ok";
+              } catch {
+                saveState.textContent = "● save failed";
+                saveState.className = "status-bad";
+              }
+            }, 650);
+          }
+          updateStatus(update.state);
+        }),
+        fontComp.of(themeFor(settings.fontSize)),
+        tabComp.of(EditorState.tabSize.of(settings.tabSize)),
+        wrapComp.of(settings.wrap ? EditorView.lineWrapping : []),
+      ]
+    }),
+    parent: document.getElementById("editor")
+  });
+
+  function updateStatus(state = view.state) {
+    const head = state.selection.main.head;
+    const line = state.doc.lineAt(head);
+    posState.textContent = `Ln ${line.number}, Col ${head - line.from + 1}`;
+    sizeState.textContent = `${state.doc.lines.toLocaleString()} lines · ${state.doc.length.toLocaleString()} chars`;
+  }
+  updateStatus();
+
+  function jumpToTop() {
+    view.dispatch({ selection: { anchor: 0 }, scrollIntoView: true });
+    requestAnimationFrame(() => {
+      view.scrollDOM.scrollTop = 0;
+      view.scrollDOM.scrollLeft = 0;
+    });
+    view.focus();
+  }
+  document.getElementById("topBtn").onclick = jumpToTop;
+
+  // iPhone / iPad の OS 側の文章補助をできる限り無効化する。
+  // Safari 18+ の inline predictive text は writingsuggestions=false で停止する。
+  // CodeMirror は contenteditable を使うため、拡張設定に加えて実 DOM にも明示する。
+  const codeContent = view.contentDOM;
+  for (const [name, value] of Object.entries({
+    autocorrect: "off",
+    autocapitalize: "none",
+    autocomplete: "off",
+    spellcheck: "false",
+    writingsuggestions: "false",
+    lang: "en",
+    "data-gramm": "false",
+    "data-gramm_editor": "false",
+    "data-enable-grammarly": "false",
+  })) codeContent.setAttribute(name, value);
+  codeContent.spellcheck = false;
+
+  const stdin = document.getElementById("stdin");
+  stdin.setAttribute("writingsuggestions", "false");
+  stdin.setAttribute("autocorrect", "off");
+  stdin.setAttribute("autocapitalize", "none");
+  stdin.spellcheck = false;
+  stdin.value = storage.get(STORAGE_INPUT) || "";
+  let inputSaveTimer = null;
+  stdin.addEventListener("input", () => {
+    clearTimeout(inputSaveTimer);
+    inputSaveTimer = setTimeout(() => storage.set(STORAGE_INPUT, stdin.value), 400);
+  });
+
+  const drawer = document.getElementById("drawer");
+  const panelBtn = document.getElementById("panelBtn");
+  const languageTools = document.getElementById("languageTools");
+  function openDrawer(pane = "inputPane") {
+    drawer.classList.add("open");
+    selectPane(pane);
+  }
+  function closeDrawer() { drawer.classList.remove("open"); view.focus(); }
+  panelBtn.onclick = () => drawer.classList.contains("open") ? closeDrawer() : openDrawer();
+  document.getElementById("closeDrawer").onclick = closeDrawer;
+
+  function selectPane(id) {
+    document.querySelectorAll(".pane").forEach(el => el.classList.toggle("active", el.id === id));
+    document.querySelectorAll(".tab").forEach(el => el.classList.toggle("active", el.dataset.pane === id));
+  }
+  document.querySelectorAll(".tab").forEach(tab => tab.onclick = () => selectPane(tab.dataset.pane));
+
+  let toastTimer = null;
+  function toast(msg) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 1400);
+  }
+
+  async function copyAll() {
+    const text = view.state.doc.toString();
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(`全文コピーしました (${view.state.doc.lines.toLocaleString()}行)`);
+      return;
+    } catch {}
+
+    // iOS/Safari fallback: CodeMirror側を全選択せず一時textareaだけを選択する。
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.top = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    const ok = document.execCommand("copy");
+    ta.remove();
+    view.focus();
+    toast(ok ? "全文コピーしました" : "コピーできませんでした");
+  }
+  document.getElementById("copyBtn").onclick = copyAll;
+
+  // ---------- Mobile-friendly source search ----------
+  const sourceSearch = document.getElementById("sourceSearch");
+  const searchQuery = document.getElementById("searchQuery");
+  const searchCount = document.getElementById("searchCount");
+  let searchOrigin = 0;
+
+  function allSearchMatches(query) {
+    if (!query) return [];
+    const text = view.state.doc.toString();
+    const foldedText = text.toLowerCase();
+    const foldedQuery = query.toLowerCase();
+    const matches = [];
+    let pos = 0;
+    while (pos <= foldedText.length) {
+      const found = foldedText.indexOf(foldedQuery, pos);
+      if (found < 0) break;
+      matches.push(found);
+      pos = found + Math.max(1, foldedQuery.length);
+    }
+    return matches;
+  }
+
+  function jumpToSearchMatch(direction = 1, fromInput = false) {
+    const query = searchQuery.value;
+    const matches = allSearchMatches(query);
+    if (!matches.length) {
+      searchCount.textContent = query ? "0/0" : "0/0";
+      return false;
+    }
+
+    let targetIndex = 0;
+    if (fromInput) {
+      targetIndex = matches.findIndex(p => p >= searchOrigin);
+      if (targetIndex < 0) targetIndex = 0;
+    } else {
+      const sel = view.state.selection.main;
+      const current = matches.findIndex(p => p === sel.from && sel.to === p + query.length);
+      if (current >= 0) {
+        targetIndex = (current + direction + matches.length) % matches.length;
+      } else if (direction > 0) {
+        targetIndex = matches.findIndex(p => p >= sel.to);
+        if (targetIndex < 0) targetIndex = 0;
+      } else {
+        targetIndex = matches.length - 1;
+        for (let i = matches.length - 1; i >= 0; --i) {
+          if (matches[i] < sel.from) { targetIndex = i; break; }
+        }
+      }
+    }
+
+    const pos = matches[targetIndex];
+    view.dispatch({
+      selection: { anchor: pos, head: pos + query.length },
+      scrollIntoView: true,
+    });
+    searchCount.textContent = `${targetIndex + 1}/${matches.length}`;
+    return true;
+  }
+
+  function openSourceSearch() {
+    const sel = view.state.selection.main;
+    searchOrigin = sel.from;
+    if (sel.to > sel.from && sel.to - sel.from <= 120) {
+      const selected = view.state.doc.sliceString(sel.from, sel.to);
+      if (!selected.includes("\n")) searchQuery.value = selected;
+    }
+    sourceSearch.classList.add("open");
+    if (searchQuery.value) jumpToSearchMatch(1, true);
+    else searchCount.textContent = "0/0";
+    searchQuery.focus();
+    searchQuery.select();
+  }
+  function closeSourceSearch() {
+    sourceSearch.classList.remove("open");
+    view.focus();
+  }
+  document.getElementById("searchBtn").onclick = openSourceSearch;
+  document.getElementById("searchClose").onclick = closeSourceSearch;
+  document.getElementById("searchNext").onclick = () => jumpToSearchMatch(1);
+  document.getElementById("searchPrev").onclick = () => jumpToSearchMatch(-1);
+  searchQuery.addEventListener("input", () => jumpToSearchMatch(1, true));
+  searchQuery.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      jumpToSearchMatch(e.shiftKey ? -1 : 1);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeSourceSearch();
+    }
+  });
+
+  const resetBtn = document.getElementById("resetBtn");
+
+  function templateEditPosition(text) {
+    const markers = [
+      "// ここに処理を記述します",
+      "# ここに処理を記述します",
+      "// write code here",
+      "# write code here",
+    ];
+    for (const marker of markers) {
+      const i = text.indexOf(marker);
+      if (i < 0) continue;
+      const eol = text.indexOf("\n", i);
+      return eol < 0 ? text.length : eol + 1;
+    }
+    return 0;
+  }
+
+  function normalizeTemplateUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    try {
+      const u = new URL(raw);
+      if (u.protocol !== "https:" && u.protocol !== "http:") {
+        throw new Error("http/https のURLを指定してください");
+      }
+      // GitHub の通常の blob URL を、そのまま fetch できる raw URL に変換する。
+      if (u.hostname === "github.com") {
+        const parts = u.pathname.split("/").filter(Boolean);
+        const blob = parts.indexOf("blob");
+        if (blob === 2 && parts.length >= 5) {
+          const owner = parts[0];
+          const repo = parts[1];
+          const ref = parts[3];
+          const path = parts.slice(4).join("/");
+          return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`;
+        }
+      }
+      return u.href;
+    } catch (e) {
+      throw new Error(`テンプレートURLが不正です: ${e?.message || e}`);
+    }
+  }
+
+  function getCachedTemplate(url) {
+    try {
+      const cache = JSON.parse(storage.get(STORAGE_TEMPLATE_CACHE) || "null");
+      return cache && cache.url === url && typeof cache.text === "string" ? cache.text : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function cacheTemplate(url, text) {
+    storage.set(STORAGE_TEMPLATE_CACHE, JSON.stringify({ url, text, savedAt: Date.now() }));
+  }
+
+  function replaceAllSource(text, anchor = 0) {
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: text },
+      selection: { anchor: Math.max(0, Math.min(text.length, anchor)) },
+      scrollIntoView: true,
+      userEvent: "input"
+    });
+    // updateListener の遅延保存を待たず、リセット直後にも確実に保存する。
+    storage.set(STORAGE_CODE, text);
+    saveState.textContent = "● saved";
+    saveState.className = "status-ok";
+  }
+
+  function updateResetButton() {
+    const hasTemplate = !!String(settings.templateUrl || "").trim();
+    resetBtn.title = hasTemplate ? "設定したURLのテンプレートにリセット" : "ソースを全削除";
+    resetBtn.setAttribute("aria-label", resetBtn.title);
+  }
+
+  async function resetToTemplate() {
+    if (resetBtn.disabled) return;
+
+    const configured = String(settings.templateUrl || "").trim();
+    if (!configured) {
+      replaceAllSource("", 0);
+      toast("ソースを全削除しました");
+      view.focus();
+      return;
+    }
+
+    let url;
+    try {
+      url = normalizeTemplateUrl(configured);
+    } catch (error) {
+      toast(error.message || String(error));
+      return;
+    }
+
+    resetBtn.disabled = true;
+    const originalText = resetBtn.textContent;
+    resetBtn.textContent = "…";
+    toast("テンプレートを取得中…");
+
+    let template = null;
+    let usedCache = false;
+
+    try {
+      // cache:no-store と時刻クエリの両方で Safari / CDN のキャッシュを避ける。
+      const sep = url.includes("?") ? "&" : "?";
+      const response = await fetch(`${url}${sep}_atcoder_mobile_ts=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const text = await response.text();
+      template = text.replace(/\r\n/g, "\n");
+      cacheTemplate(url, template);
+    } catch (error) {
+      template = getCachedTemplate(url);
+      usedCache = template != null;
+      if (template == null) {
+        console.error("template fetch failed", error);
+        toast("テンプレートを取得できませんでした（CORSやURLを確認してください）");
+        resetBtn.disabled = false;
+        resetBtn.textContent = originalText;
+        view.focus();
+        return;
+      }
+    }
+
+    replaceAllSource(template, templateEditPosition(template));
+    toast(usedCache
+      ? "通信失敗のため、このURLで前回取得したテンプレートを使いました"
+      : "テンプレートの最新版にリセットしました");
+
+    resetBtn.disabled = false;
+    resetBtn.textContent = originalText;
+    view.focus();
+  }
+  resetBtn.onclick = resetToTemplate;
+  updateResetButton();
+
+  function insertText(text) {
+    const sel = view.state.selection.main;
+    view.dispatch({ changes: { from: sel.from, to: sel.to, insert: text }, selection: { anchor: sel.from + text.length } });
+    view.focus();
+  }
+  function moveCursor(delta) {
+    const head = view.state.selection.main.head;
+    const next = Math.max(0, Math.min(view.state.doc.length, head + delta));
+    view.dispatch({ selection: { anchor: next }, scrollIntoView: true });
+    view.focus();
+  }
+
+  const primaryKeys = document.getElementById("primaryKeys");
+  const secondaryKeys = document.getElementById("secondaryKeys");
+  function makeInsertKey(item) {
+    const btn = document.createElement("button");
+    btn.className = "key" + (String(item.label).length >= 3 ? " wide" : "");
+    btn.type = "button";
+    btn.textContent = item.label || "·";
+    btn.title = `入力: ${item.text}`;
+    btn.addEventListener("pointerdown", e => e.preventDefault());
+    btn.addEventListener("click", () => insertText(item.text));
+    return btn;
+  }
+  function renderCustomKeybar() {
+    primaryKeys.replaceChildren();
+    secondaryKeys.replaceChildren();
+    for (const item of settings.customKeys) {
+      (item.zone === "primary" ? primaryKeys : secondaryKeys).appendChild(makeInsertKey(item));
+    }
+  }
+  renderCustomKeybar();
+
+  // Fixed editor actions are intentionally separate from user-customizable insertion buttons.
+  document.querySelectorAll(".keybar [data-action]").forEach(btn => {
+    btn.addEventListener("pointerdown", e => e.preventDefault()); // iPhoneでエディタのフォーカスを奪わない
+    btn.addEventListener("click", () => {
+      const action = btn.dataset.action;
+      if (action === "tab") indentMore(view);
+      else if (action === "outdent") indentLess(view);
+      else if (action === "complete") { view.focus(); startCompletion(view); }
+      else if (action === "left") moveCursor(-1);
+      else if (action === "right") moveCursor(1);
+      else if (action === "undo") undo(view);
+      else if (action === "redo") redo(view);
+    });
+  });
+
+  // ---------- TypeScript 5.9.2 compile + browser debug runner ----------
+  const output = document.getElementById("output");
+  const errors = document.getElementById("errors");
+  const runBtn = document.getElementById("runBtn");
+  const checkBtn = document.getElementById("checkBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const runState = document.getElementById("runState");
+  let activeWorker = null;
+  let runTimer = null;
+
+  const compilerOptions = {
+    target: ts.ScriptTarget.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    module: ts.ModuleKind.NodeNext,
+    noEmitOnError: true,
+    pretty: true,
+    inlineSourceMap: true,
+    inlineSources: true,
+  };
+
+  function diagnosticsText(diags) {
+    if (!diags?.length) return "";
+    return diags.map(d => {
+      const msg = ts.flattenDiagnosticMessageText(d.messageText, "\n");
+      if (d.file && typeof d.start === "number") {
+        const p = d.file.getLineAndCharacterOfPosition(d.start);
+        return `Main.ts:${p.line + 1}:${p.character + 1} - TS${d.code}: ${msg}`;
+      }
+      return `TS${d.code}: ${msg}`;
+    }).join("\n\n");
+  }
+
+  // Full-ish semantic check using the TS 5.9.2 compiler API.
+  // lib.esnext.full.d.ts and its referenced libs are loaded lazily from the same TS package version.
+  let libMapPromise = null;
+  async function getTypeScriptLibMap() {
+    if (libMapPromise) return libMapPromise;
+    libMapPromise = (async () => {
+      const map = new Map();
+      const loading = new Map();
+      const base = "https://cdn.jsdelivr.net/npm/typescript@5.9.2/lib/";
+      async function load(name) {
+        name = name.replace(/^\/+/, "");
+        if (map.has("/" + name)) return;
+        if (loading.has(name)) return loading.get(name);
+        const task = (async () => {
+          const res = await fetch(base + name);
+          if (!res.ok) throw new Error(`TypeScript lib 読み込み失敗: ${name} (${res.status})`);
+          const text = await res.text();
+          map.set("/" + name, text);
+          const refs = [...text.matchAll(/<reference\s+lib=["']([^"']+)["']\s*\/>/g)].map(m => `lib.${m[1]}.d.ts`);
+          await Promise.all(refs.map(load));
+        })();
+        loading.set(name, task);
+        try { await task; } finally { loading.delete(name); }
+      }
+      await load("lib.esnext.full.d.ts");
+      return map;
+    })();
+    return libMapPromise;
+  }
+
+  const nodeShim = String.raw`
+    declare function require(id: string): any;
+    declare const __filename: string;
+    declare const __dirname: string;
+    declare const process: {
+      env: Record<string, string | undefined>;
+      argv: string[];
+      exitCode?: number;
+      stdout: { write(chunk: any): boolean };
+      stderr: { write(chunk: any): boolean };
+      exit(code?: number): never;
+      hrtime: { bigint(): bigint };
+      memoryUsage(): { rss:number; heapTotal:number; heapUsed:number; external:number; arrayBuffers:number };
+    };
+    declare class Buffer extends Uint8Array {
+      static from(value: any, encoding?: string): Buffer;
+      toString(encoding?: string): string;
+    }
+    declare module "fs" {
+      export function readFileSync(path: number | string, options?: any): any;
+      export function writeFileSync(path: string, data: any, options?: any): void;
+      const fs: any;
+      export default fs;
+    }
+    declare module "node:fs" {
+      export function readFileSync(path: number | string, options?: any): any;
+      export function writeFileSync(path: string, data: any, options?: any): void;
+      const fs: any;
+      export default fs;
+    }
+    declare module "lodash";
+    declare module "mathjs";
+    declare module "tstl";
+    declare module "immutable";
+    declare module "data-structure-typed";
+    declare module "ac-library-js";
+  `;
+
+  function normFile(name) {
+    if (!name) return name;
+    name = name.replaceAll("\\", "/");
+    if (!name.startsWith("/")) name = "/" + name;
+    return name.replace(/\/{2,}/g, "/");
+  }
+
+  async function typeCheck() {
+    if (settings.language !== "typescript") {
+      toast("型チェックはTypeScriptのみ対応しています");
+      return;
+    }
+    checkBtn.disabled = true;
+    openDrawer("errorPane");
+    errors.textContent = "TypeScript 5.9.2 の標準型定義を準備しています…";
+    runState.textContent = "type checking…";
+    try {
+      const libs = await getTypeScriptLibMap();
+      const files = new Map(libs);
+      files.set("/Main.ts", view.state.doc.toString());
+      files.set("/node-atcoder-lite.d.ts", nodeShim);
+
+      const readVirtual = (name) => {
+        const n = normFile(name);
+        if (files.has(n)) return files.get(n);
+        const base = n.slice(n.lastIndexOf("/") + 1);
+        if (files.has("/" + base)) return files.get("/" + base);
+        return undefined;
+      };
+      const host = {
+        getSourceFile(fileName, languageVersion) {
+          const text = readVirtual(fileName);
+          return text == null ? undefined : ts.createSourceFile(fileName, text, languageVersion, true);
+        },
+        getDefaultLibFileName: () => "/lib.esnext.full.d.ts",
+        writeFile: () => {},
+        getCurrentDirectory: () => "/",
+        getDirectories: () => [],
+        fileExists: fileName => readVirtual(fileName) != null,
+        readFile: fileName => readVirtual(fileName),
+        getCanonicalFileName: fileName => fileName,
+        useCaseSensitiveFileNames: () => true,
+        getNewLine: () => "\n",
+        directoryExists: () => true,
+        realpath: p => p,
+      };
+      const options = {
+        target: ts.ScriptTarget.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.NodeNext,
+        module: ts.ModuleKind.NodeNext,
+        noEmitOnError: true,
+        pretty: true,
+      };
+      const program = ts.createProgram({
+        rootNames: ["/Main.ts", "/node-atcoder-lite.d.ts"],
+        options,
+        host,
+      });
+      const diags = ts.getPreEmitDiagnostics(program).filter(d => d.category === ts.DiagnosticCategory.Error);
+      if (!diags.length) {
+        errors.textContent = "✓ TypeScript 5.9.2: エラーは見つかりませんでした。\n\n※ Node の型定義は競プロ向け軽量版です。";
+        runState.textContent = "type check OK";
+        toast("型チェック OK");
+      } else {
+        errors.textContent = diagnosticsText(diags);
+        runState.textContent = `${diags.length} type error(s)`;
+        const first = diags.find(d => d.file?.fileName?.endsWith("Main.ts") && typeof d.start === "number");
+        if (first) {
+          const pos = Math.max(0, Math.min(view.state.doc.length, first.start));
+          view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+        }
+      }
+    } catch (e) {
+      errors.textContent = "型チェックを開始できませんでした。\n" + String(e?.stack || e);
+      runState.textContent = "type check unavailable";
+    } finally {
+      checkBtn.disabled = settings.language !== "typescript";
+    }
+  }
+  document.getElementById("checkBtn").onclick = typeCheck;
+
+  function makeWorker(js, input) {
+    const workerSource = `
+      const __stdin = ${JSON.stringify(input)};
+      let __stdout = "";
+      let __stderr = "";
+      const __emit = (kind, s) => {
+        s = String(s);
+        if (kind === "out") __stdout += s; else __stderr += s;
+      };
+      const __format = (v) => {
+        if (typeof v === "string") return v;
+        if (typeof v === "bigint") return v.toString() + "n";
+        try { return JSON.stringify(v); } catch { return String(v); }
+      };
+      const console = {
+        log: (...a) => __emit("out", a.map(__format).join(" ") + "\\n"),
+        info: (...a) => __emit("out", a.map(__format).join(" ") + "\\n"),
+        warn: (...a) => __emit("err", a.map(__format).join(" ") + "\\n"),
+        error: (...a) => __emit("err", a.map(__format).join(" ") + "\\n"),
+        time: () => {}, timeEnd: () => {},
+      };
+      const Buffer = {
+        from: (value) => {
+          const s = String(value);
+          const arr = new TextEncoder().encode(s);
+          arr.toString = () => s;
+          return arr;
+        },
+        isBuffer: () => false,
+      };
+      class ExitSignal { constructor(code){ this.code = code; } }
+      const process = {
+        env: { ONLINE_JUDGE: "1", ATCODER: "1" },
+        argv: ["/usr/bin/node", "Main.js"],
+        stdin: {},
+        stdout: { write: (s) => { __emit("out", s); return true; } },
+        stderr: { write: (s) => { __emit("err", s); return true; } },
+        exitCode: 0,
+        exit: (code = 0) => { throw new ExitSignal(code); },
+        hrtime: { bigint: () => BigInt(Math.floor(performance.now() * 1e6)) },
+        memoryUsage: () => ({ rss:0, heapTotal:0, heapUsed:0, external:0, arrayBuffers:0 }),
+      };
+      const __fs = {
+        readFileSync: (path, options) => {
+          if (path !== 0 && path !== "/dev/stdin" && path !== "/dev/fd/0") throw new Error("Browser debug: fs.readFileSync は stdin(0) のみ対応しています");
+          const wantsBuffer = options == null;
+          return wantsBuffer ? Buffer.from(__stdin) : __stdin;
+        },
+      };
+      const require = (name) => {
+        if (name === "fs" || name === "node:fs") return __fs;
+        if (name === "assert" || name === "node:assert") return {
+          ok(v, m){ if(!v) throw new Error(m || "Assertion failed"); },
+          strictEqual(a,b,m){ if(a !== b) throw new Error(m || ("Expected " + a + " === " + b)); }
+        };
+        if (name === "util" || name === "node:util") return { TextEncoder, TextDecoder };
+        throw new Error("Browser debug では require(\\\"" + name + "\\\") を再現していません");
+      };
+      const module = { exports: {} };
+      const exports = module.exports;
+      try {
+        const fn = new Function("require", "process", "console", "module", "exports", "Buffer", "__filename", "__dirname", ${JSON.stringify(js + "\n//# sourceURL=Main.js")});
+        fn(require, process, console, module, exports, Buffer, "Main.js", ".");
+        postMessage({ type:"done", stdout:__stdout, stderr:__stderr, exitCode:process.exitCode || 0 });
+      } catch (e) {
+        if (e instanceof ExitSignal) {
+          postMessage({ type:"done", stdout:__stdout, stderr:__stderr, exitCode:e.code });
+        } else {
+          postMessage({ type:"error", stdout:__stdout, stderr:__stderr, error: (e && e.stack) ? e.stack : String(e) });
+        }
+      }
+    `;
+    return new Worker(URL.createObjectURL(new Blob([workerSource], {type:"text/javascript"})));
+  }
+
+  function stopRun(reason = "停止しました") {
+    if (activeWorker) activeWorker.terminate();
+    activeWorker = null;
+    clearTimeout(runTimer);
+    runTimer = null;
+    stopBtn.disabled = true;
+    runBtn.disabled = settings.language !== "typescript";
+    runState.textContent = reason;
+  }
+  stopBtn.onclick = () => { stopRun("stopped"); errors.textContent = "実行を停止しました。"; selectPane("errorPane"); };
+
+  async function runCode() {
+    if (settings.language !== "typescript") {
+      toast("実行はTypeScriptのみ対応しています");
+      return;
+    }
+    if (activeWorker) stopRun("restarting");
+    openDrawer("outputPane");
+    output.textContent = "Compiling with TypeScript 5.9.2…";
+    errors.textContent = "エラーはありません。";
+    runBtn.disabled = true;
+    runState.textContent = "compiling…";
+
+    if (!globalThis.ts || ts.version !== "5.9.2") {
+      errors.textContent = `TypeScript 5.9.2 の読み込みに失敗しました。現在: ${globalThis.ts?.version || "not loaded"}`;
+      selectPane("errorPane");
+      runBtn.disabled = settings.language !== "typescript";
+      runState.textContent = "compiler unavailable";
+      return;
+    }
+
+    const source = view.state.doc.toString();
+    let result;
+    try {
+      result = ts.transpileModule(source, {
+        compilerOptions,
+        fileName: "Main.ts",
+        reportDiagnostics: true,
+      });
+    } catch (e) {
+      errors.textContent = String(e?.stack || e);
+      selectPane("errorPane");
+      runBtn.disabled = settings.language !== "typescript";
+      runState.textContent = "compile error";
+      return;
+    }
+
+    const compileErrors = (result.diagnostics || []).filter(d => d.category === ts.DiagnosticCategory.Error);
+    if (compileErrors.length) {
+      errors.textContent = diagnosticsText(compileErrors);
+      output.textContent = "";
+      selectPane("errorPane");
+      runBtn.disabled = settings.language !== "typescript";
+      runState.textContent = `${compileErrors.length} compile error(s)`;
+      return;
+    }
+
+    output.textContent = "";
+    runState.textContent = "running…";
+    stopBtn.disabled = false;
+    const t0 = performance.now();
+    activeWorker = makeWorker(result.outputText, stdin.value);
+    activeWorker.onmessage = ev => {
+      const data = ev.data || {};
+      const ms = performance.now() - t0;
+      if (data.stdout) output.textContent = data.stdout;
+      if (data.stderr) errors.textContent = data.stderr;
+      if (data.type === "error") {
+        errors.textContent = [data.stderr, data.error].filter(Boolean).join("\n");
+        selectPane("errorPane");
+        runState.textContent = `RE · ${ms.toFixed(1)}ms (browser)`;
+      } else {
+        if (!data.stdout) output.textContent = "(出力なし)";
+        if (data.stderr) selectPane("errorPane");
+        else selectPane("outputPane");
+        runState.textContent = `done · ${ms.toFixed(1)}ms (browser)`;
+      }
+      stopRun(runState.textContent);
+    };
+    activeWorker.onerror = e => {
+      errors.textContent = e.message || String(e);
+      selectPane("errorPane");
+      stopRun("worker error");
+    };
+    runTimer = setTimeout(() => {
+      stopRun("browser TLE > 4s");
+      errors.textContent = "ブラウザ内デバッグを4秒で停止しました。\n※ AtCoder の実行時間判定とは別物です。";
+      selectPane("errorPane");
+    }, 4000);
+  }
+  runBtn.onclick = runCode;
+
+  // ---------- Settings ----------
+  const settingsDialog = document.getElementById("settings");
+  document.getElementById("settingsBtn").onclick = () => settingsDialog.showModal();
+  document.getElementById("settingsClose").onclick = () => settingsDialog.close();
+  const fontSize = document.getElementById("fontSize");
+  const tabSize = document.getElementById("tabSize");
+  const wrap = document.getElementById("wrap");
+  const language = document.getElementById("language");
+  const templateUrl = document.getElementById("templateUrl");
+  const customKeysEditor = document.getElementById("customKeysEditor");
+  const languageState = document.getElementById("languageState");
+  const envLabel = document.getElementById("envLabel");
+  fontSize.value = settings.fontSize;
+  tabSize.value = settings.tabSize;
+  wrap.value = settings.wrap ? "on" : "off";
+  language.value = settings.language;
+  templateUrl.value = settings.templateUrl;
+
+  function saveSettings() {
+    storage.set(STORAGE_SETTINGS, JSON.stringify(settings));
+  }
+
+  function renderCustomKeysEditor() {
+    customKeysEditor.replaceChildren();
+    settings.customKeys.forEach((item, index) => {
+      const row = document.createElement("div");
+      row.className = "key-setting-row";
+
+      const label = document.createElement("input");
+      label.type = "text";
+      label.value = item.label;
+      label.placeholder = "表示";
+      label.setAttribute("aria-label", "ボタン表示名");
+
+      const text = document.createElement("input");
+      text.type = "text";
+      text.value = item.text;
+      text.placeholder = "入力する文字列";
+      text.setAttribute("aria-label", "入力する文字列");
+      text.spellcheck = false;
+      text.autocapitalize = "none";
+      text.autocomplete = "off";
+
+      const zone = document.createElement("select");
+      zone.setAttribute("aria-label", "ボタン位置");
+      zone.innerHTML = '<option value="primary">前半</option><option value="secondary">後半</option>';
+      zone.value = item.zone;
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "mini-btn";
+      remove.textContent = "×";
+      remove.title = "このボタンを削除";
+
+      const update = () => {
+        item.label = label.value;
+        item.text = text.value;
+        item.zone = zone.value === "primary" ? "primary" : "secondary";
+        saveSettings();
+        renderCustomKeybar();
+      };
+      label.addEventListener("input", update);
+      text.addEventListener("input", update);
+      zone.addEventListener("change", update);
+      remove.onclick = () => {
+        settings.customKeys.splice(index, 1);
+        saveSettings();
+        renderCustomKeysEditor();
+        renderCustomKeybar();
+      };
+
+      row.append(label, text, zone, remove);
+      customKeysEditor.appendChild(row);
+    });
+  }
+  document.getElementById("addCustomKey").onclick = () => {
+    settings.customKeys.push({
+      id: `custom-${Date.now()}`,
+      label: "key",
+      text: "",
+      zone: "secondary",
+    });
+    saveSettings();
+    renderCustomKeysEditor();
+    renderCustomKeybar();
+    const rows = customKeysEditor.querySelectorAll(".key-setting-row");
+    rows[rows.length - 1]?.querySelector("input")?.focus();
+  };
+  document.getElementById("resetCustomKeys").onclick = () => {
+    settings.customKeys = cloneDefaultKeys();
+    saveSettings();
+    renderCustomKeysEditor();
+    renderCustomKeybar();
+    toast("入力ボタンを初期値に戻しました");
+  };
+  renderCustomKeysEditor();
+
+  function refreshLanguageUi() {
+    const isTs = settings.language === "typescript";
+    const label = languageLabels[settings.language] || settings.language;
+    languageState.textContent = label;
+    envLabel.textContent = isTs
+      ? "TS 5.9.2 · Node.js 22.19.0 target"
+      : `${label} · edit / search / copy`;
+    languageTools.hidden = !isTs;
+    runBtn.disabled = !isTs || !!activeWorker;
+    checkBtn.disabled = !isTs;
+    panelBtn.disabled = !isTs;
+    if (!isTs && drawer.classList.contains("open")) closeDrawer();
+    runBtn.title = isTs ? "実行" : "実行はTypeScriptのみ対応";
+    checkBtn.title = isTs ? "TypeScript型チェック" : "型チェックはTypeScriptのみ対応";
+    runState.textContent = isTs ? "browser debug" : "edit / search";
+  }
+  fontSize.onchange = () => {
+    settings.fontSize = Math.max(11, Math.min(24, Number(fontSize.value || 15)));
+    view.dispatch({ effects: fontComp.reconfigure(themeFor(settings.fontSize)) });
+    saveSettings();
+  };
+  tabSize.onchange = () => {
+    settings.tabSize = Number(tabSize.value);
+    view.dispatch({ effects: tabComp.reconfigure(EditorState.tabSize.of(settings.tabSize)) });
+    saveSettings();
+  };
+  wrap.onchange = () => {
+    settings.wrap = wrap.value === "on";
+    view.dispatch({ effects: wrapComp.reconfigure(settings.wrap ? EditorView.lineWrapping : []) });
+    saveSettings();
+  };
+  language.onchange = () => {
+    settings.language = allowedLanguages.has(language.value) ? language.value : "typescript";
+    view.dispatch({ effects: languageComp.reconfigure(languageExtension(settings.language)) });
+    saveSettings();
+    refreshLanguageUi();
+    toast(settings.language === "typescript"
+      ? "TypeScriptモード: 実行・型チェックが使えます"
+      : `${languageLabels[settings.language]}モード: 編集・検索・コピー用`);
+    view.focus();
+  };
+  templateUrl.oninput = () => {
+    settings.templateUrl = templateUrl.value;
+    saveSettings();
+    updateResetButton();
+  };
+  refreshLanguageUi();
+
+  // iOS Safari: software keyboard opens/closes -> keep app in visual viewport.
+  function syncViewportHeight() {
+    const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    document.documentElement.style.setProperty("--app-height", h + "px");
+  }
+  syncViewportHeight();
+  window.visualViewport?.addEventListener("resize", syncViewportHeight);
+  window.addEventListener("resize", syncViewportHeight);
+
+  // Save immediately when Safari backgrounds the tab.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      try {
+        storage.set(STORAGE_CODE, view.state.doc.toString());
+        storage.set(STORAGE_INPUT, stdin.value);
+      } catch {}
+    }
+  });
+
+  // Prevent accidental browser page zoom from double-tap on toolbar; editor pinch zoom remains browser-controlled.
+  document.querySelectorAll("button").forEach(b => b.addEventListener("dblclick", e => e.preventDefault()));
+
+  view.focus();
+</script>
+</body>
+</html>
