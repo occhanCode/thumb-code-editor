@@ -498,7 +498,7 @@
 <script type="module">
   import { basicSetup } from "https://esm.sh/codemirror@6.0.2";
   import { EditorView } from "https://esm.sh/@codemirror/view@6.43.11";
-  import { EditorState, Compartment } from "https://esm.sh/@codemirror/state@6.7.4";
+  import { EditorState, Compartment, Prec } from "https://esm.sh/@codemirror/state@6.7.4";
   import { javascript, javascriptLanguage } from "https://esm.sh/@codemirror/lang-javascript@6.2.5";
   import { cpp } from "https://esm.sh/@codemirror/lang-cpp@6.0.3";
   import { python } from "https://esm.sh/@codemirror/lang-python@6.2.1";
@@ -685,6 +685,10 @@
     state: EditorState.create({
       doc: initialCode,
       extensions: [
+        // iOSのソフトウェアキーボードでは CodeMirror の自動括弧補完と
+        // IME/キーボード側の入力が競合して「(()」のように重複することがある。
+        // 入力は常に1文字をそのまま反映し、必要な括弧は上の入力ボタンでも補えるようにする。
+        Prec.highest(EditorState.languageData.of(() => [{ closeBrackets: { brackets: [] } }])),
         basicSetup,
         languageComp.of(languageExtension(settings.language)),
         syntaxHighlighting(brightSyntax),
