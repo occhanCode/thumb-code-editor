@@ -43,7 +43,7 @@
       height: var(--app-height);
       display: grid;
       /* Keyboard helper is deliberately at the TOP so the iPhone keyboard never covers it. */
-      grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+      grid-template-rows: auto auto auto minmax(0, 1fr) max-content auto;
       padding-top: var(--safe-top);
       background: var(--bg);
     }
@@ -130,7 +130,9 @@
     .key.action:active { background:#dbeeff; }
 
     .language-tools {
+      height: 44px;
       min-height: 44px;
+      max-height: 44px;
       display: flex;
       align-items: center;
       gap: 6px;
