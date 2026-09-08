@@ -41,15 +41,17 @@
 
     #app {
       height: var(--app-height);
-      display: grid;
-      /* Keyboard helper is deliberately at the TOP so the iPhone keyboard never covers it. */
-      grid-template-rows: auto auto auto minmax(0, 1fr) max-content auto;
+      display: flex;
+      flex-direction: column;
       padding-top: var(--safe-top);
       background: var(--bg);
     }
 
     .topbar {
+      position: relative;
+      z-index: 30;
       min-height: 50px;
+      flex: 0 0 auto;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -97,6 +99,7 @@
     /* Coding keys live directly below the action bar, not at the bottom. */
     .keybar {
       min-height: 48px;
+      flex: 0 0 auto;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -129,31 +132,50 @@
     .key.action { background:#eef6ff; border-color:#9bc2ee; color:#0b4a8b; }
     .key.action:active { background:#dbeeff; }
 
-    .language-tools {
-      height: 44px;
-      min-height: 44px;
-      max-height: 44px;
+    .tools-menu-wrap { position: relative; flex: 0 0 auto; }
+    .tools-menu {
+      position: absolute;
+      z-index: 45;
+      top: 44px;
+      right: 0;
+      width: max-content;
+      min-width: 190px;
+      max-width: min(88vw, 300px);
+      padding: 6px;
+      border: 1px solid #afb8c1;
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 10px 28px rgba(31,35,40,.20);
+    }
+    .tools-menu[hidden] { display: none !important; }
+    .tools-menu-item {
+      width: 100%;
+      height: 38px;
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 4px max(8px, var(--safe-right)) 4px max(8px, var(--safe-left));
-      background: #eef6ff;
-      border-top: 1px solid #c8ddf4;
-      overflow-x: auto;
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch;
+      justify-content: flex-start;
+      gap: 8px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #1f2328;
+      font-size: 13px;
+      font-weight: 750;
+      white-space: nowrap;
+      text-align: left;
     }
-    .language-tools[hidden] { display: none !important; }
-    .language-tools::-webkit-scrollbar { display: none; }
-    .language-tools-label {
-      flex: 0 0 auto;
-      color: #0b4a8b;
-      font: 800 11px ui-monospace, SFMono-Regular, Menlo, monospace;
-      margin-right: 2px;
+    .tools-menu-item:active { background: #eaeef2; }
+    .tools-menu-item.primary { color: #075bbd; }
+    .tools-menu-empty {
+      padding: 9px 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: normal;
     }
-    .language-tools .btn { height: 34px; flex: 0 0 auto; }
 
-    #editor-wrap { min-height: 0; position: relative; overflow: hidden; background: #ffffff; }
+    #editor-wrap { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; background: #ffffff; }
     #editor { height: 100%; }
     .cm-editor { height: 100%; background: #ffffff; color: #1f2328; }
     .cm-scroller {
@@ -190,6 +212,7 @@
     .cm-tooltip-autocomplete > ul > li { color: #1f2328 !important; }
     .cm-tooltip-autocomplete > ul > li[aria-selected] { background: #0969da !important; color: #ffffff !important; }
     .source-search {
+      flex: 0 0 auto;
       display:none; align-items:center; gap:5px;
       padding:5px max(7px, var(--safe-right)) 5px max(7px, var(--safe-left));
       border-bottom:1px solid var(--line); background:#fffbea;
@@ -206,6 +229,7 @@
 
     .statusbar {
       height: calc(28px + var(--safe-bottom));
+      flex: 0 0 auto;
       display: flex;
       align-items: center;
       gap: 10px;
@@ -333,6 +357,17 @@
     <button class="btn icon" id="searchBtn" title="ソース内検索" aria-label="ソース内検索">⌕</button>
     <button class="btn good" id="copyBtn" title="全文コピー">⧉ <span class="label-optional">Copy</span></button>
     <button class="btn icon" id="resetBtn" title="GitHubの最新テンプレートにリセット" aria-label="GitHubの最新テンプレートにリセット">↺</button>
+    <div class="tools-menu-wrap">
+      <button class="btn icon" id="toolsBtn" type="button" title="追加ツール" aria-label="追加ツール" aria-haspopup="menu" aria-expanded="false">⋯</button>
+      <div class="tools-menu" id="toolsMenu" role="menu" hidden>
+        <div id="typeScriptToolItems">
+          <button class="tools-menu-item primary" id="runBtn" type="button" role="menuitem">▶ 実行</button>
+          <button class="tools-menu-item" id="checkBtn" type="button" role="menuitem">✓ 型チェック</button>
+          <button class="tools-menu-item" id="panelBtn" type="button" role="menuitem">⌨ 入力・出力</button>
+        </div>
+        <div class="tools-menu-empty" id="noLanguageTools" hidden>この言語の追加ツールはありません。</div>
+      </div>
+    </div>
     <button class="btn icon" id="settingsBtn" title="設定">⚙</button>
   </header>
 
@@ -362,12 +397,6 @@
 
   <main id="editor-wrap"><div id="editor"></div></main>
 
-  <div id="languageTools" class="language-tools" aria-label="TypeScript tools">
-    <span class="language-tools-label">TypeScript</span>
-    <button class="btn primary" id="runBtn" title="実行">▶ 実行</button>
-    <button class="btn" id="checkBtn" title="TypeScript型チェック">✓ 型チェック</button>
-    <button class="btn" id="panelBtn" title="入力・出力">⌨ 入力・出力</button>
-  </div>
 
   <div class="statusbar">
     <span id="saveState" class="status-ok">● saved</span>
@@ -412,7 +441,7 @@
       <select id="wrap"><option value="off" selected>OFF</option><option value="on">ON</option></select>
     </div>
     <div class="setting">
-      <div>言語モード<small>TypeScriptのみ実行・型チェック対応。専用操作はエディタ下部に表示します。その他の言語は編集・検索・コピー用です。</small></div>
+      <div>言語モード<small>TypeScriptのみ実行・型チェック対応。専用操作は上部の「⋯」メニューに表示します。その他の言語は編集・検索・コピー用です。</small></div>
       <select id="language">
         <option value="typescript" selected>TypeScript</option>
         <option value="c">C</option>
@@ -743,13 +772,35 @@
 
   const drawer = document.getElementById("drawer");
   const panelBtn = document.getElementById("panelBtn");
-  const languageTools = document.getElementById("languageTools");
+  const toolsBtn = document.getElementById("toolsBtn");
+  const toolsMenu = document.getElementById("toolsMenu");
+  const typeScriptToolItems = document.getElementById("typeScriptToolItems");
+  const noLanguageTools = document.getElementById("noLanguageTools");
+
+  function setToolsMenu(open) {
+    toolsMenu.hidden = !open;
+    toolsBtn.setAttribute("aria-expanded", String(open));
+  }
+  function toggleToolsMenu() { setToolsMenu(toolsMenu.hidden); }
+  toolsBtn.addEventListener("pointerdown", e => e.preventDefault());
+  toolsBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    toggleToolsMenu();
+  });
+  toolsMenu.addEventListener("pointerdown", e => e.preventDefault());
+  toolsMenu.addEventListener("click", e => e.stopPropagation());
+  document.addEventListener("click", () => setToolsMenu(false));
+  document.addEventListener("keydown", e => { if (e.key === "Escape") setToolsMenu(false); });
+
   function openDrawer(pane = "inputPane") {
     drawer.classList.add("open");
     selectPane(pane);
   }
   function closeDrawer() { drawer.classList.remove("open"); view.focus(); }
-  panelBtn.onclick = () => drawer.classList.contains("open") ? closeDrawer() : openDrawer();
+  panelBtn.onclick = () => {
+    setToolsMenu(false);
+    drawer.classList.contains("open") ? closeDrawer() : openDrawer();
+  };
   document.getElementById("closeDrawer").onclick = closeDrawer;
 
   function selectPane(id) {
@@ -1248,7 +1299,7 @@
       checkBtn.disabled = settings.language !== "typescript";
     }
   }
-  document.getElementById("checkBtn").onclick = typeCheck;
+  document.getElementById("checkBtn").onclick = () => { setToolsMenu(false); typeCheck(); };
 
   function makeWorker(js, input) {
     const workerSource = `
@@ -1415,7 +1466,7 @@
       selectPane("errorPane");
     }, 4000);
   }
-  runBtn.onclick = runCode;
+  runBtn.onclick = () => { setToolsMenu(false); runCode(); };
 
   // ---------- Settings ----------
   const settingsDialog = document.getElementById("settings");
@@ -1521,7 +1572,8 @@
     envLabel.textContent = isTs
       ? "TS 5.9.2 · Node.js 22.19.0 target"
       : `${label} · edit / search / copy`;
-    languageTools.hidden = !isTs;
+    typeScriptToolItems.hidden = !isTs;
+    noLanguageTools.hidden = isTs;
     runBtn.disabled = !isTs || !!activeWorker;
     checkBtn.disabled = !isTs;
     panelBtn.disabled = !isTs;
@@ -1549,6 +1601,7 @@
     settings.language = allowedLanguages.has(language.value) ? language.value : "typescript";
     view.dispatch({ effects: languageComp.reconfigure(languageExtension(settings.language)) });
     saveSettings();
+    setToolsMenu(false);
     refreshLanguageUi();
     toast(settings.language === "typescript"
       ? "TypeScriptモード: 実行・型チェックが使えます"
