@@ -37,10 +37,10 @@ const OVT = (() => {
   `;
   root.appendChild(stage);
 
-  // 元画像そのものから口だけ消した顔。
-  // 目・眉・メガネ・鼻・輪郭は描き直していない。
+  // 元画像そのものから口だけ除いた顔。
+  // 輪郭外・2本の角の間も透過済み。
   const face = document.createElement('img');
-  face.src = asset('face_mouthless_exact.png');
+  face.src = asset('face_mouthless_exact_transparent.png');
   face.draggable = false;
   face.style.cssText = `
     position:absolute;
@@ -52,23 +52,70 @@ const OVT = (() => {
   `;
   stage.appendChild(face);
 
-  // 元画像からそのまま切り出した口。
-  const mouth = document.createElement('img');
-  mouth.src = asset('mouth_exact_crop.png');
-  mouth.draggable = false;
-  mouth.style.cssText = `
+  // 口を開けたときだけ見える口内。
+  const mouthInside = document.createElement('div');
+  mouthInside.style.cssText = `
     position:absolute;
-    left:38.109756%;
-    top:78.431373%;
-    width:35.670732%;
-    height:auto;
+    left:42.3%;
+    top:83.2%;
+    width:27.2%;
+    height:5.0%;
+    border-radius:50%;
+    background:
+      radial-gradient(
+        ellipse at 50% 38%,
+        #504746 0%,
+        #272222 58%,
+        #171313 100%
+      );
+    opacity:0;
     transform-origin:50% 50%;
-    will-change:transform;
+    will-change:transform,opacity;
     pointer-events:none;
   `;
-  stage.appendChild(mouth);
+  stage.appendChild(mouthInside);
 
-  const controls = document.createElement('div');
+  // 同じ「元画像の口」を上下に分割して使う。
+  // 開いていないときは2枚を合わせることで、
+  // 元画像と同じ口になる。
+  const makeMouthHalf = clipPath => {
+    const img = document.createElement('img');
+
+    img.src = asset('mouth_exact_crop.png');
+    img.draggable = false;
+
+    img.style.cssText = `
+      position:absolute;
+      left:38.109756%;
+      top:78.431373%;
+      width:35.670732%;
+      height:auto;
+      transform-origin:50% 50%;
+      clip-path:${clipPath};
+      -webkit-clip-path:${clipPath};
+      will-change:transform;
+      pointer-events:none;
+    `;
+
+    return img;
+  };
+
+  const mouthUpper =
+    makeMouthHalf('inset(0 0 50% 0)');
+
+  const mouthLower =
+    makeMouthHalf('inset(50% 0 0 0)');
+
+  stage.appendChild(mouthUpper);
+  stage.appendChild(mouthLower);
+
+  // ========================================
+  // Controls
+  // ========================================
+
+  const controls =
+    document.createElement('div');
+
   controls.style.cssText = `
     position:absolute;
     right:-2px;
@@ -81,22 +128,33 @@ const OVT = (() => {
     border-radius:999px;
     background:rgba(20,20,20,.76);
     color:white;
-    font:12px/1 -apple-system,BlinkMacSystemFont,sans-serif;
-    box-shadow:0 2px 8px rgba(0,0,0,.2);
+    font:12px/1
+      -apple-system,
+      BlinkMacSystemFont,
+      sans-serif;
+    box-shadow:
+      0 2px 8px rgba(0,0,0,.2);
     backdrop-filter:blur(8px);
     -webkit-backdrop-filter:blur(8px);
   `;
 
-  const camBtn = document.createElement('button');
+  const camBtn =
+    document.createElement('button');
   camBtn.textContent = '顔追跡';
 
-  const editBtn = document.createElement('button');
+  const editBtn =
+    document.createElement('button');
   editBtn.textContent = '移動';
 
-  const hideUIBtn = document.createElement('button');
+  const hideUIBtn =
+    document.createElement('button');
   hideUIBtn.textContent = '●';
 
-  [camBtn, editBtn, hideUIBtn].forEach(button => {
+  [
+    camBtn,
+    editBtn,
+    hideUIBtn
+  ].forEach(button => {
     button.style.cssText = `
       border:0;
       background:transparent;
@@ -104,118 +162,288 @@ const OVT = (() => {
       font:inherit;
       padding:4px 5px;
     `;
+
     controls.appendChild(button);
   });
 
   root.appendChild(controls);
-  document.documentElement.appendChild(root);
+
+  document.documentElement
+    .appendChild(root);
+
+  // ========================================
+  // Tracking state
+  // ========================================
 
   let faceLandmarker = null;
+
   let video = null;
   let stream = null;
+
   let tracking = false;
   let loading = false;
   let editMode = false;
+
   let raf = 0;
+  let idleRaf = 0;
+
   let lastVideoTime = -1;
 
   const state = {
     x: 0,
     y: 0,
+
     roll: 0,
     yaw: 0,
     pitch: 0,
+
     jaw: 0,
+    smile: 0,
+    pucker: 0,
   };
 
-  const target = { ...state };
-
-  const scoreMap = categories => {
-    const result = Object.create(null);
-
-    for (const category of categories || []) {
-      result[category.categoryName] = category.score;
-    }
-
-    return result;
+  const target = {
+    ...state
   };
 
-  const score = (map, name) => map[name] || 0;
+  const scoreMap =
+    categories => {
+      const result =
+        Object.create(null);
+
+      for (
+        const category
+        of categories || []
+      ) {
+        result[
+          category.categoryName
+        ] = category.score;
+      }
+
+      return result;
+    };
+
+  const score =
+    (map, name) =>
+      map[name] || 0;
+
+  // ========================================
+  // Rendering
+  // ========================================
 
   function render() {
-    const k = 0.18;
+    // 急にパーツが動かないように平滑化。
+    const k =
+      tracking ? 0.16 : 0.10;
 
-    for (const key of Object.keys(state)) {
-      state[key] = lerp(state[key], target[key], k);
+    for (
+      const key
+      of Object.keys(state)
+    ) {
+      state[key] =
+        lerp(
+          state[key],
+          target[key],
+          k
+        );
     }
 
-    // 顔全体を動かす。
-    // パーツ個別の位置は変えないので本人感が崩れにくい。
+    // 顔全体。
+    // 本人感を壊さないよう変形量はかなり弱い。
     stage.style.transform =
-      `translate3d(${state.x}px, ${state.y}px, 0) ` +
-      `rotate(${state.roll}deg) ` +
-      `skewX(${state.yaw * -0.55}deg) ` +
-      `scaleX(${1 - Math.abs(state.yaw) * 0.004}) ` +
-      `scaleY(${1 + state.pitch * 0.002})`;
+      `translate3d(` +
+      `${state.x}px,` +
+      `${state.y}px,` +
+      `0)` +
 
-    // 今の段階では「元の口そのもの」を伸縮させる。
-    // jaw=0 なら元画像と完全に同じ位置・大きさ。
-    const j = clamp(state.jaw, 0, 1);
+      ` rotate(` +
+      `${state.roll}deg)` +
 
-    const scaleX = 1 + j * 0.025;
-    const scaleY = 1 + j * 0.18;
-    const shiftY = j * 2.2;
+      ` skewX(` +
+      `${state.yaw * -0.45}deg)` +
 
-    mouth.style.transform =
-      `translateY(${shiftY}px) scale(${scaleX}, ${scaleY})`;
+      ` scaleX(` +
+      `${1 - Math.abs(state.yaw) * 0.0035})` +
 
-    raf = requestAnimationFrame(render);
+      ` scaleY(` +
+      `${1 + state.pitch * 0.0018})`;
+
+    // MediaPipeは口を閉じていても
+    // jawOpenが完全な0にならないことがあるため
+    // デッドゾーンを設定。
+    const open =
+      clamp(
+        (state.jaw - 0.07) /
+        0.55,
+        0,
+        1
+      );
+
+    const smile =
+      clamp(
+        (state.smile - 0.12) /
+        0.55,
+        0,
+        1
+      );
+
+    const pucker =
+      clamp(
+        (state.pucker - 0.10) /
+        0.55,
+        0,
+        1
+      );
+
+    // --------------------------------
+    // Smooth mouth
+    // --------------------------------
+
+    // 笑顔では少し横に広がる。
+    // すぼめたときは少し狭くする。
+    const widthScale =
+      1 +
+      smile * 0.055 -
+      pucker * 0.075;
+
+    // 上唇はほとんど動かさず、
+    // 下唇を中心に開く。
+    const upperY =
+      -open * 1.5 -
+      smile * 0.25;
+
+    const lowerY =
+      open * 6.2 +
+      smile * 0.45;
+
+    const lowerScaleY =
+      1 +
+      open * 0.035;
+
+    mouthUpper.style.transform =
+      `translateY(${upperY}px) ` +
+      `scaleX(${widthScale})`;
+
+    mouthLower.style.transform =
+      `translateY(${lowerY}px) ` +
+      `scaleX(${widthScale}) ` +
+      `scaleY(${lowerScaleY})`;
+
+    // 口内も0→1で連続的に拡大。
+    const interiorScaleY =
+      0.15 +
+      open * 1.15;
+
+    const interiorScaleX =
+      0.88 +
+      open * 0.16 +
+      smile * 0.08 -
+      pucker * 0.12;
+
+    mouthInside.style.opacity =
+      String(
+        clamp(
+          open * 1.35,
+          0,
+          0.96
+        )
+      );
+
+    mouthInside.style.transform =
+      `translateY(` +
+      `${open * 2.3}px)` +
+
+      ` scale(` +
+      `${interiorScaleX},` +
+      `${interiorScaleY})`;
+
+    raf =
+      requestAnimationFrame(
+        render
+      );
   }
 
   render();
 
+  // ========================================
+  // MediaPipe
+  // ========================================
+
   async function ensureTracker() {
-    if (faceLandmarker || loading) return;
+    if (
+      faceLandmarker ||
+      loading
+    ) {
+      return;
+    }
 
     loading = true;
-    camBtn.textContent = '読込中…';
+
+    camBtn.textContent =
+      '読込中…';
 
     try {
-      const vision = await import(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm'
-      );
+      const vision =
+        await import(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm'
+        );
 
       const {
         FaceLandmarker,
         FilesetResolver
       } = vision;
 
-      const fileset = await FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm'
+      const fileset =
+        await FilesetResolver
+          .forVisionTasks(
+            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm'
+          );
+
+      faceLandmarker =
+        await FaceLandmarker
+          .createFromOptions(
+            fileset,
+            {
+              baseOptions: {
+                modelAssetPath:
+                  'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+
+                delegate:
+                  'GPU',
+              },
+
+              runningMode:
+                'VIDEO',
+
+              numFaces:
+                1,
+
+              outputFaceBlendshapes:
+                true,
+
+              outputFacialTransformationMatrixes:
+                false,
+            }
+          );
+
+      camBtn.textContent =
+        '顔追跡';
+
+    } catch (error) {
+
+      console.error(
+        '[occhan VTuber] tracker load failed',
+        error
       );
 
-      faceLandmarker = await FaceLandmarker.createFromOptions(fileset, {
-        baseOptions: {
-          modelAssetPath:
-            'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-          delegate: 'GPU',
-        },
-        runningMode: 'VIDEO',
-        numFaces: 1,
-        outputFaceBlendshapes: true,
-        outputFacialTransformationMatrixes: false,
-      });
-
-      camBtn.textContent = '顔追跡';
-    } catch (error) {
-      console.error('[occhan VTuber] tracker load failed', error);
-
-      camBtn.textContent = '追跡NG';
+      camBtn.textContent =
+        '追跡NG';
 
       alert(
         '顔追跡ライブラリを読み込めませんでした。' +
         'このサイトのCSPで外部スクリプトが禁止されている可能性があります。'
       );
+
     } finally {
       loading = false;
     }
@@ -229,34 +457,70 @@ const OVT = (() => {
 
     await ensureTracker();
 
-    if (!faceLandmarker) return;
+    if (!faceLandmarker) {
+      return;
+    }
 
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 480 },
-          height: { ideal: 640 },
-        },
-        audio: false,
-      });
+      stream =
+        await navigator
+          .mediaDevices
+          .getUserMedia({
+            video: {
+              facingMode:
+                'user',
 
-      video = document.createElement('video');
-      video.playsInline = true;
-      video.muted = true;
-      video.srcObject = stream;
-      video.style.display = 'none';
+              width: {
+                ideal:480
+              },
 
-      document.documentElement.appendChild(video);
+              height: {
+                ideal:640
+              },
+            },
+
+            audio:false,
+          });
+
+      video =
+        document
+          .createElement(
+            'video'
+          );
+
+      video.playsInline =
+        true;
+
+      video.muted =
+        true;
+
+      video.srcObject =
+        stream;
+
+      video.style.display =
+        'none';
+
+      document.documentElement
+        .appendChild(
+          video
+        );
 
       await video.play();
 
-      tracking = true;
-      camBtn.textContent = '停止';
+      tracking =
+        true;
+
+      camBtn.textContent =
+        '停止';
 
       trackLoop();
+
     } catch (error) {
-      console.error('[occhan VTuber] camera failed', error);
+
+      console.error(
+        '[occhan VTuber] camera failed',
+        error
+      );
 
       alert(
         '前面カメラを開始できませんでした。' +
@@ -266,11 +530,19 @@ const OVT = (() => {
   }
 
   function stopTracking() {
-    tracking = false;
-    camBtn.textContent = '顔追跡';
+    tracking =
+      false;
+
+    camBtn.textContent =
+      '顔追跡';
 
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream
+        .getTracks()
+        .forEach(
+          track =>
+            track.stop()
+        );
     }
 
     if (video) {
@@ -280,67 +552,110 @@ const OVT = (() => {
     stream = null;
     video = null;
 
-    Object.assign(target, {
-      x: 0,
-      y: 0,
-      roll: 0,
-      yaw: 0,
-      pitch: 0,
-      jaw: 0,
-    });
+    Object.assign(
+      target,
+      {
+        x:0,
+        y:0,
+
+        roll:0,
+        yaw:0,
+        pitch:0,
+
+        jaw:0,
+        smile:0,
+        pucker:0,
+      }
+    );
   }
 
   function trackLoop() {
-    if (!tracking || !video || !faceLandmarker) return;
+    if (
+      !tracking ||
+      !video ||
+      !faceLandmarker
+    ) {
+      return;
+    }
 
-    const now = performance.now();
+    const now =
+      performance.now();
 
     if (
       video.readyState >= 2 &&
-      video.currentTime !== lastVideoTime
+      video.currentTime !==
+        lastVideoTime
     ) {
-      lastVideoTime = video.currentTime;
+      lastVideoTime =
+        video.currentTime;
 
       try {
         const result =
-          faceLandmarker.detectForVideo(video, now);
+          faceLandmarker
+            .detectForVideo(
+              video,
+              now
+            );
 
         const landmarks =
-          result.faceLandmarks?.[0];
+          result
+            .faceLandmarks?.[0];
 
         if (landmarks) {
-          const leftEye = landmarks[33];
-          const rightEye = landmarks[263];
-          const nose = landmarks[1];
+          const leftEye =
+            landmarks[33];
+
+          const rightEye =
+            landmarks[263];
+
+          const nose =
+            landmarks[1];
 
           const midX =
-            (leftEye.x + rightEye.x) * 0.5;
+            (
+              leftEye.x +
+              rightEye.x
+            ) * 0.5;
 
           const midY =
-            (leftEye.y + rightEye.y) * 0.5;
+            (
+              leftEye.y +
+              rightEye.y
+            ) * 0.5;
 
           const eyeDx =
-            rightEye.x - leftEye.x;
+            rightEye.x -
+            leftEye.x;
 
           const eyeDy =
-            rightEye.y - leftEye.y;
+            rightEye.y -
+            leftEye.y;
 
           const eyeDist =
             Math.max(
               0.001,
-              Math.hypot(eyeDx, eyeDy)
+              Math.hypot(
+                eyeDx,
+                eyeDy
+              )
             );
 
           const roll =
-            Math.atan2(eyeDy, eyeDx) *
+            Math.atan2(
+              eyeDy,
+              eyeDx
+            ) *
             180 /
             Math.PI;
 
           const yaw =
             clamp(
-              (nose.x - midX) /
+              (
+                nose.x -
+                midX
+              ) /
               eyeDist *
-              2.0,
+              1.9,
               -1,
               1
             );
@@ -348,35 +663,51 @@ const OVT = (() => {
           const pitch =
             clamp(
               (
-                (nose.y - midY) /
+                (
+                  nose.y -
+                  midY
+                ) /
                 eyeDist -
                 0.72
               ) *
-              1.0,
+              0.9,
               -1,
               1
             );
 
           target.roll =
-            clamp(roll, -8, 8);
+            clamp(
+              roll,
+              -7,
+              7
+            );
 
-          target.yaw = yaw;
-          target.pitch = pitch;
+          target.yaw =
+            yaw;
+
+          target.pitch =
+            pitch;
 
           target.x =
             clamp(
-              (0.5 - nose.x) *
-              12,
-              -5,
-              5
+              (
+                0.5 -
+                nose.x
+              ) *
+              10,
+              -4.5,
+              4.5
             );
 
           target.y =
             clamp(
-              (nose.y - 0.5) *
-              8,
-              -3.5,
-              3.5
+              (
+                nose.y -
+                0.5
+              ) *
+              7,
+              -3,
+              3
             );
         }
 
@@ -387,12 +718,46 @@ const OVT = (() => {
 
         if (categories) {
           const map =
-            scoreMap(categories);
+            scoreMap(
+              categories
+            );
 
           target.jaw =
-            score(map, 'jawOpen');
+            score(
+              map,
+              'jawOpen'
+            );
+
+          target.smile =
+            (
+              score(
+                map,
+                'mouthSmileLeft'
+              ) +
+
+              score(
+                map,
+                'mouthSmileRight'
+              )
+            ) *
+            0.5;
+
+          target.pucker =
+            Math.max(
+              score(
+                map,
+                'mouthPucker'
+              ),
+
+              score(
+                map,
+                'mouthFunnel'
+              )
+            );
         }
+
       } catch (error) {
+
         console.warn(
           '[occhan VTuber] frame error',
           error
@@ -400,25 +765,45 @@ const OVT = (() => {
       }
     }
 
-    requestAnimationFrame(trackLoop);
+    requestAnimationFrame(
+      trackLoop
+    );
   }
 
-  let pointers = new Map();
-  let startRect = null;
-  let startDist = 0;
-  let startWidth = 0;
+  // ========================================
+  // Move / Resize
+  // ========================================
+
+  let pointers =
+    new Map();
+
+  let startRect =
+    null;
+
+  let startDist =
+    0;
+
+  let startWidth =
+    0;
 
   function setEdit(value) {
-    editMode = value;
+    editMode =
+      value;
 
     root.style.pointerEvents =
-      value ? 'auto' : 'none';
+      value
+        ? 'auto'
+        : 'none';
 
-    controls.style.pointerEvents =
-      'auto';
+    controls
+      .style
+      .pointerEvents =
+        'auto';
 
     editBtn.textContent =
-      value ? '完了' : '移動';
+      value
+        ? '完了'
+        : '移動';
 
     root.style.outline =
       value
@@ -431,36 +816,49 @@ const OVT = (() => {
     event => {
       if (
         !editMode ||
-        event.target.closest('button')
+        event.target
+          .closest(
+            'button'
+          )
       ) {
         return;
       }
 
       event.preventDefault();
 
-      root.setPointerCapture(
-        event.pointerId
-      );
+      root
+        .setPointerCapture(
+          event.pointerId
+        );
 
       pointers.set(
         event.pointerId,
         {
-          x: event.clientX,
-          y: event.clientY,
+          x:event.clientX,
+          y:event.clientY,
         }
       );
 
       startRect =
-        root.getBoundingClientRect();
+        root
+          .getBoundingClientRect();
 
-      if (pointers.size === 2) {
+      if (
+        pointers.size === 2
+      ) {
         const p =
-          [...pointers.values()];
+          [
+            ...pointers
+              .values()
+          ];
 
         startDist =
           Math.hypot(
-            p[0].x - p[1].x,
-            p[0].y - p[1].y
+            p[0].x -
+            p[1].x,
+
+            p[0].y -
+            p[1].y
           );
 
         startWidth =
@@ -474,7 +872,10 @@ const OVT = (() => {
     event => {
       if (
         !editMode ||
-        !pointers.has(event.pointerId)
+        !pointers
+          .has(
+            event.pointerId
+          )
       ) {
         return;
       }
@@ -482,13 +883,16 @@ const OVT = (() => {
       event.preventDefault();
 
       const prev =
-        pointers.get(event.pointerId);
+        pointers
+          .get(
+            event.pointerId
+          );
 
       pointers.set(
         event.pointerId,
         {
-          x: event.clientX,
-          y: event.clientY,
+          x:event.clientX,
+          y:event.clientY,
         }
       );
 
@@ -497,40 +901,55 @@ const OVT = (() => {
         startRect
       ) {
         const dx =
-          event.clientX - prev.x;
+          event.clientX -
+          prev.x;
 
         const dy =
-          event.clientY - prev.y;
+          event.clientY -
+          prev.y;
 
         const r =
-          root.getBoundingClientRect();
+          root
+            .getBoundingClientRect();
 
-        root.style.right = 'auto';
-        root.style.bottom = 'auto';
+        root.style.right =
+          'auto';
+
+        root.style.bottom =
+          'auto';
 
         root.style.left =
           `${clamp(
             r.left + dx,
             0,
-            innerWidth - r.width
+            innerWidth -
+            r.width
           )}px`;
 
         root.style.top =
           `${clamp(
             r.top + dy,
             0,
-            innerHeight - r.height
+            innerHeight -
+            r.height
           )}px`;
+
       } else if (
         pointers.size === 2
       ) {
         const p =
-          [...pointers.values()];
+          [
+            ...pointers
+              .values()
+          ];
 
         const d =
           Math.hypot(
-            p[0].x - p[1].x,
-            p[0].y - p[1].y
+            p[0].x -
+            p[1].x,
+
+            p[0].y -
+            p[1].y
           );
 
         const newWidth =
@@ -542,7 +961,8 @@ const OVT = (() => {
               startDist
             ),
             100,
-            innerWidth * 0.68
+            innerWidth *
+            0.68
           );
 
         root.style.width =
@@ -552,11 +972,11 @@ const OVT = (() => {
   );
 
   const endPointer =
-    event => {
-      pointers.delete(
-        event.pointerId
-      );
-    };
+    event =>
+      pointers
+        .delete(
+          event.pointerId
+        );
 
   root.addEventListener(
     'pointerup',
@@ -580,12 +1000,17 @@ const OVT = (() => {
     'click',
     event => {
       event.stopPropagation();
-      setEdit(!editMode);
+      setEdit(
+        !editMode
+      );
     }
   );
 
   const hotspot =
-    document.createElement('button');
+    document
+      .createElement(
+        'button'
+      );
 
   hotspot.title =
     'VTuber controls';
@@ -604,45 +1029,61 @@ const OVT = (() => {
     pointer-events:auto;
   `;
 
-  hideUIBtn.addEventListener(
-    'click',
-    event => {
-      event.stopPropagation();
+  hideUIBtn
+    .addEventListener(
+      'click',
+      event => {
+        event
+          .stopPropagation();
 
-      controls.style.display =
-        'none';
+        controls
+          .style
+          .display =
+            'none';
 
-      hotspot.style.display =
-        'block';
-    }
-  );
+        hotspot
+          .style
+          .display =
+            'block';
+      }
+    );
 
-  hotspot.addEventListener(
-    'click',
-    () => {
-      controls.style.display =
-        'flex';
+  hotspot
+    .addEventListener(
+      'click',
+      () => {
+        controls
+          .style
+          .display =
+            'flex';
 
-      hotspot.style.display =
-        'none';
-    }
-  );
+        hotspot
+          .style
+          .display =
+            'none';
+      }
+    );
 
   document.documentElement
-    .appendChild(hotspot);
+    .appendChild(
+      hotspot
+    );
 
   const api = {
     show() {
-      root.style.display = '';
+      root.style.display =
+        '';
     },
 
     hide() {
-      root.style.display = 'none';
+      root.style.display =
+        'none';
     },
 
     toggle() {
       root.style.display =
-        root.style.display === 'none'
+        root.style.display ===
+        'none'
           ? ''
           : 'none';
     },
@@ -653,16 +1094,65 @@ const OVT = (() => {
 
     destroy() {
       stopTracking();
-      cancelAnimationFrame(raf);
+
+      cancelAnimationFrame(
+        raf
+      );
+
+      cancelAnimationFrame(
+        idleRaf
+      );
 
       root.remove();
+
       hotspot.remove();
 
-      delete window.__occhanVTuber;
+      delete window
+        .__occhanVTuber;
     },
   };
 
-  window.__occhanVTuber = api;
+  window.__occhanVTuber =
+    api;
+
+  // 顔追跡OFFのときだけ、
+  // 生きている感じが出る程度の極小アイドル。
+  let t0 =
+    performance.now();
+
+  const idle =
+    now => {
+      if (!tracking) {
+        const t =
+          (
+            now -
+            t0
+          ) /
+          1000;
+
+        target.y =
+          Math.sin(
+            t * 1.55
+          ) *
+          0.55;
+
+        target.roll =
+          Math.sin(
+            t * 0.72
+          ) *
+          0.28;
+      }
+
+      idleRaf =
+        requestAnimationFrame(
+          idle
+        );
+    };
+
+  idleRaf =
+    requestAnimationFrame(
+      idle
+    );
 
   return api;
 })();
