@@ -15,7 +15,7 @@ const OVT = (() => {
   root.id = "occhan-vtuber-root";
   root.style.cssText = `
     position:fixed; right:10px; bottom:12px; width:min(38vw,220px);
-    aspect-ratio:328/408; z-index:2147483647; pointer-events:none;
+    aspect-ratio:335/435; z-index:2147483647; pointer-events:none;
     user-select:none; -webkit-user-select:none; touch-action:none;
     filter:drop-shadow(0 3px 6px rgba(0,0,0,.18));
   `;
@@ -36,42 +36,42 @@ const OVT = (() => {
 
   const base = makeLayer(
     asset("base_head"),
-    "inset:0;width:100%;height:100%;object-fit:contain;"
+    "left:-3.6%;top:-3.5%;width:102.8%;height:auto;"
   );
-
+  
   const browL = makeLayer(
     asset("brow_l"),
-    "left:25%;top:45.3%;width:28%;"
+    "left:22.7%;top:44.4%;width:28.4%;"
   );
-
+  
   const browR = makeLayer(
     asset("brow_r"),
-    "left:54.9%;top:45.3%;width:28%;"
+    "left:51.0%;top:44.4%;width:28.4%;"
   );
-
+  
   const eyeL = makeLayer(
     asset("eye_l"),
-    "left:26.2%;top:54.1%;width:23.6%;transform-origin:50% 60%;"
+    "left:26.3%;top:53.1%;width:22.7%;transform-origin:50% 60%;"
   );
-
+  
   const eyeR = makeLayer(
     asset("eye_r"),
-    "left:56.7%;top:54.1%;width:23.6%;transform-origin:50% 60%;"
+    "left:57.0%;top:53.1%;width:22.7%;transform-origin:50% 60%;"
   );
-
+  
   const glasses = makeLayer(
     asset("glasses"),
-    "left:14.9%;top:51.9%;width:70.8%;"
+    "left:14.6%;top:51.5%;width:70.7%;"
   );
-
+  
   const nose = makeLayer(
     asset("nose"),
-    "left:42.4%;top:67.4%;width:16.8%;"
+    "left:40.6%;top:63.0%;width:20.0%;"
   );
-
+  
   const mouth = makeLayer(
     asset("mouth_neutral"),
-    "left:32%;top:78.6%;width:35.5%;transform-origin:50% 50%;"
+    "left:31.0%;top:73.8%;width:36.4%;transform-origin:50% 50%;"
   );
 
   [
