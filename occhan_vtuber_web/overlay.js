@@ -183,14 +183,14 @@ const OVT = (() => {
 
   // 元画像上の目の位置に合わせた値
   const eyeLeft = createBlinkEye({
-    cx: 126,
+    cx: 128,
     cy: 264,
     rx: 29,
     ry: 22
   });
-
+  
   const eyeRight = createBlinkEye({
-    cx: 229,
+    cx: 231,
     cy: 264,
     rx: 29,
     ry: 22
@@ -477,24 +477,70 @@ const OVT = (() => {
   // =========================================================
 
   function render() {
-    const k =
-      tracking
-        ? 0.16
-        : 0.10;
-
-    for (
-      const key
-      of Object.keys(
-        state
-      )
-    ) {
-      state[key] =
-        lerp(
-          state[key],
-          target[key],
-          k
-        );
-    }
+    // 顔全体はゆっくり。
+    // 口と瞬きはそれより速く追従させる。
+    const headK = tracking ? 0.10 : 0.08;
+    const mouthK = tracking ? 0.24 : 0.12;
+    const blinkK = tracking ? 0.42 : 0.18;
+    
+    state.x = lerp(state.x, target.x, headK);
+    state.y = lerp(state.y, target.y, headK);
+    
+    state.roll =
+      lerp(
+        state.roll,
+        target.roll,
+        headK
+      );
+    
+    state.yaw =
+      lerp(
+        state.yaw,
+        target.yaw,
+        headK
+      );
+    
+    state.pitch =
+      lerp(
+        state.pitch,
+        target.pitch,
+        headK
+      );
+    
+    state.jaw =
+      lerp(
+        state.jaw,
+        target.jaw,
+        mouthK
+      );
+    
+    state.smile =
+      lerp(
+        state.smile,
+        target.smile,
+        mouthK
+      );
+    
+    state.pucker =
+      lerp(
+        state.pucker,
+        target.pucker,
+        mouthK
+      );
+    
+    state.blinkL =
+      lerp(
+        state.blinkL,
+        target.blinkL,
+        blinkK
+      );
+    
+    state.blinkR =
+      lerp(
+        state.blinkR,
+        target.blinkR,
+        blinkK
+      );
 
     // -------------------------
     // Whole face
@@ -587,18 +633,20 @@ const OVT = (() => {
       pucker *
       0.075;
 
-    const upperY =
-      -open *
-      1.5;
-
-    const lowerY =
+    const easedOpen =
       open *
-      6.2;
-
+      open *
+      (3 - 2 * open);
+    
+    const upperY =
+      -easedOpen * 1.4;
+    
+    const lowerY =
+      easedOpen * 6.4;
+    
     const lowerScaleY =
       1 +
-      open *
-      0.035;
+      easedOpen * 0.045;
 
     mouthUpper.style.transform =
       `translateY(
@@ -620,18 +668,14 @@ const OVT = (() => {
       )`;
 
     const interiorScaleY =
-      0.15 +
-      open *
-      1.15;
-
+      0.08 +
+      easedOpen * 1.22;
+    
     const interiorScaleX =
-      0.88 +
-      open *
-      0.16 +
-      smile *
-      0.08 -
-      pucker *
-      0.12;
+      0.90 +
+      easedOpen * 0.14 +
+      smile * 0.08 -
+      pucker * 0.12;
 
     mouthInside.style.opacity =
       String(
@@ -645,7 +689,7 @@ const OVT = (() => {
 
     mouthInside.style.transform =
       `translateY(
-        ${open * 2.3}px
+        ${easedOpen * 2.3}px
       )
       scale(
         ${interiorScaleX},
