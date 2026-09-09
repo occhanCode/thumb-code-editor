@@ -1,0 +1,23 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>occhan VTuber Web</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f3ef;color:#222}
+  body{padding:24px}
+  .card{max-width:760px;margin:auto;background:#fff;border-radius:18px;padding:22px;box-shadow:0 10px 35px #0001}
+  h1{margin:0 0 8px;font-size:25px}
+  p{line-height:1.7}
+  button,a.btn{display:inline-block;border:0;border-radius:12px;background:#222;color:#fff;padding:12px 16px;text-decoration:none;font-weight:700}
+  .muted{color:#666;font-size:14px}
+  code{background:#eee;padding:2px 5px;border-radius:5px}
+</style>
+<div class="card">
+  <h1>occhan VTuber Web</h1>
+  <p>ブラウザだけで動くVTuberのテストページです。右下の「顔追跡」を押すと、前面カメラを使って目・口・顔の傾きを追従します。</p>
+  <p class="muted">カメラ映像は表示されません。MediaPipeの推論は端末上で行われます。</p>
+  <p><a class="btn" href="setup.html">Safariへの追加手順</a></p>
+  <p>まずこのページで動作確認し、その後 <code>setup.html</code> から任意サイト用のブックマークレットを作ります。</p>
+</div>
+<script type="module" src="overlay.js"></script>
