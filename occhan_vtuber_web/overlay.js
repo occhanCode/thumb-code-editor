@@ -49,7 +49,7 @@ const OVT = (() => {
   const face = document.createElement("img");
 
   face.src =
-    asset("face_mouthless_pupilless_exact.png");
+    asset("face_mouthless_pupilless_exact_v4.png");
 
   face.draggable = false;
 
@@ -106,17 +106,17 @@ const OVT = (() => {
   // 元画像からそのまま抜いた黒目。
   // 初期位置では元画像と完全一致する。
   const pupilL = makePupil(
-    "pupil_l_exact.png",
-    34.7561,
-    60.5392,
-    10.0610
+    "pupil_l_exact_v4.png",
+    36.8902,
+    62.9902,
+    7.0122
   );
   
   const pupilR = makePupil(
-    "pupil_r_exact.png",
-    65.8537,
-    60.5392,
-    10.0610
+    "pupil_r_exact_v4.png",
+    67.3780,
+    62.9902,
+    7.3171
   );
 
   const blinkSvg =
