@@ -106,17 +106,17 @@ const OVT = (() => {
   // 元画像からそのまま抜いた黒目。
   // 初期位置では元画像と完全一致する。
   const pupilL = makePupil(
-    "pupil_l_exact_v5.png",
-    35.0610,
-    62.7451,
-    10.3659
-  );
-  
-  const pupilL = makePupil(
     "pupil_l_exact_v7.png",
     35.6707,
     63.9706,
     9.4512
+  );
+  
+  const pupilR = makePupil(
+    "pupil_r_exact_v5.png",
+    66.1585,
+    62.7451,
+    9.7561
   );
 
   const blinkSvg =
