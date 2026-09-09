@@ -107,7 +107,7 @@ const OVT = (() => {
   // 初期位置では元画像と完全一致する。
   const pupilL = makePupil(
     "pupil_l_exact.png",
-    35.2561,
+    34.7561,
     60.5392,
     10.0610
   );
@@ -221,14 +221,14 @@ const OVT = (() => {
 
   // 元画像上の目の位置に合わせた値
   const eyeLeft = createBlinkEye({
-    cx: 139,
+    cx: 137,
     cy: 264,
     rx: 29,
     ry: 22
   });
   
   const eyeRight = createBlinkEye({
-    cx: 242,
+    cx: 240,
     cy: 264,
     rx: 29,
     ry: 22
