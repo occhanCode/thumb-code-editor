@@ -4,30 +4,12 @@ const OVT = (() => {
     return window.__occhanVTuber;
   }
 
-  const SVG_NS = "http://www.w3.org/2000/svg";
-
   const SCRIPT_URL = new URL(import.meta.url);
   const BASE_URL = new URL(".", SCRIPT_URL);
   const asset = name => new URL(`assets/${name}.png`, BASE_URL).href;
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const lerp = (a, b, t) => a + (b - a) * t;
-
-  const makeLayer = (src, style) => {
-    const img = document.createElement("img");
-    img.src = src;
-    img.draggable = false;
-    img.style.cssText = `position:absolute; pointer-events:none; ${style}`;
-    return img;
-  };
-
-  const svgEl = (tag, attrs = {}) => {
-    const el = document.createElementNS(SVG_NS, tag);
-    for (const [k, v] of Object.entries(attrs)) {
-      el.setAttribute(k, String(v));
-    }
-    return el;
-  };
 
   const root = document.createElement("div");
   root.id = "occhan-vtuber-root";
@@ -49,208 +31,136 @@ const OVT = (() => {
   stage.style.cssText = `
     position:absolute;
     inset:0;
-    transform-origin:50% 85%;
+    transform-origin:50% 84%;
     will-change:transform;
     pointer-events:none;
-    overflow:visible;
+    overflow:hidden;
   `;
   root.appendChild(stage);
 
-  // ===== Base and image parts =====
-
-  // base_head.png を reference に合わせて少し拡大＆上左へ寄せる
-  const base = makeLayer(
-    asset("base_head"),
-    "left:-3.9%; top:-3.5%; width:102.7%; height:auto;"
-  );
-
-  const browL = makeLayer(
-    asset("brow_l"),
-    "left:22.7%; top:44.4%; width:28.4%;"
-  );
-
-  const browR = makeLayer(
-    asset("brow_r"),
-    "left:51.0%; top:44.4%; width:28.4%;"
-  );
-
-  const nose = makeLayer(
-    asset("nose"),
-    "left:40.6%; top:63.0%; width:20.0%; opacity:.82;"
-  );
-
-  const mouth = makeLayer(
-    asset("mouth_neutral"),
-    "left:31.0%; top:73.8%; width:36.4%; transform-origin:50% 50%;"
-  );
-
-  stage.appendChild(base);
-  stage.appendChild(browL);
-  stage.appendChild(browR);
-
-  // ===== SVG rig for eyes + glasses =====
-
-  const svg = svgEl("svg", {
-    viewBox: "0 0 335 435",
-    preserveAspectRatio: "none"
-  });
-  svg.style.cssText = `
+  // =========================
+  // Base face: use the approved reference as-is
+  // =========================
+  const base = document.createElement("img");
+  base.src = asset("reference");
+  base.draggable = false;
+  base.style.cssText = `
     position:absolute;
     inset:0;
     width:100%;
     height:100%;
-    overflow:visible;
+    object-fit:fill;
     pointer-events:none;
   `;
+  stage.appendChild(base);
 
-  const eyesGroup = svgEl("g");
-  const glassesGroup = svgEl("g");
-  svg.appendChild(eyesGroup);
-  svg.appendChild(glassesGroup);
-  stage.appendChild(svg);
+  // reference.png に含まれる余計な左上文字を隠す
+  const coverLeftTop = document.createElement("div");
+  coverLeftTop.style.cssText = `
+    position:absolute;
+    left:0;
+    top:0;
+    width:9%;
+    height:12%;
+    background:#f5f4ef;
+    pointer-events:none;
+  `;
+  stage.appendChild(coverLeftTop);
 
-  function createEye(cx, cy) {
-    const group = svgEl("g");
-    const openGroup = svgEl("g");
+  // reference.png に含まれる下の黒線を隠す
+  const coverBottom = document.createElement("div");
+  coverBottom.style.cssText = `
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:0;
+    height:5.8%;
+    background:#f5f4ef;
+    pointer-events:none;
+  `;
+  stage.appendChild(coverBottom);
 
-    const sclera = svgEl("ellipse", {
-      cx,
-      cy,
-      rx: 30,
-      ry: 17.5,
-      fill: "#fbfbfa"
-    });
+  // =========================
+  // Mouth rig
+  // =========================
 
-    // 上まぶた（元画像のやや眠そうな形）
-    const upper = svgEl("path", {
-      d: `M ${cx - 32} ${cy - 4}
-          Q ${cx - 12} ${cy - 24} ${cx} ${cy - 23}
-          Q ${cx + 18} ${cy - 22} ${cx + 32} ${cy - 5}`,
-      fill: "none",
-      stroke: "#2b2726",
-      "stroke-width": "8.5",
-      "stroke-linecap": "round",
-      "stroke-linejoin": "round"
-    });
+  // 口の差し替え時だけ、元の口を少し隠すための下地
+  const mouthBaseCover = document.createElement("div");
+  mouthBaseCover.style.cssText = `
+    position:absolute;
+    left:29.8%;
+    top:72.8%;
+    width:40.2%;
+    height:15.2%;
+    border-radius:50%;
+    background:rgba(245,244,239,.97);
+    filter:blur(1px);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .08s linear;
+  `;
+  stage.appendChild(mouthBaseCover);
 
-    // 下まぶたは弱め
-    const lower = svgEl("path", {
-      d: `M ${cx - 27} ${cy + 10}
-          Q ${cx} ${cy + 17} ${cx + 27} ${cy + 9}`,
-      fill: "none",
-      stroke: "#3a3635",
-      "stroke-width": "4.8",
-      "stroke-linecap": "round",
-      "stroke-linejoin": "round",
-      opacity: "0.92"
-    });
-
-    const iris = svgEl("ellipse", {
-      cx,
-      cy: cy + 2,
-      rx: 10.2,
-      ry: 13.0,
-      fill: "#2f2b2a"
-    });
-
-    const pupil = svgEl("ellipse", {
-      cx,
-      cy: cy + 2.7,
-      rx: 4.2,
-      ry: 5.2,
-      fill: "#1b1918",
-      opacity: "0.45"
-    });
-
-    openGroup.appendChild(sclera);
-    openGroup.appendChild(iris);
-    openGroup.appendChild(pupil);
-    openGroup.appendChild(upper);
-    openGroup.appendChild(lower);
-    group.appendChild(openGroup);
-
-    return {
-      group,
-      openGroup,
-      iris,
-      pupil,
-      baseCx: cx,
-      baseCy: cy + 2
-    };
-  }
-
-  // reference に寄せた位置
-  const leftEye = createEye(118, 248);
-  const rightEye = createEye(219, 248);
-
-  eyesGroup.appendChild(leftEye.group);
-  eyesGroup.appendChild(rightEye.group);
-
-  function addRoughPath(parent, d, {
-    stroke = "#151312",
-    width = 11,
-    opacity = 1
-  } = {}) {
-    const p = svgEl("path", {
-      d,
-      fill: "none",
-      stroke,
-      "stroke-width": width,
-      "stroke-linecap": "round",
-      "stroke-linejoin": "round",
-      opacity
-    });
-    parent.appendChild(p);
-    return p;
-  }
-
-  // 元画像っぽい少し四角寄りの黒縁メガネ
-  const leftLens =
-    "M 60 246 " +
-    "Q 62 232 78 230 " +
-    "L 141 230 " +
-    "Q 156 231 158 245 " +
-    "L 157 270 " +
-    "Q 154 282 139 282 " +
-    "L 79 282 " +
-    "Q 64 281 61 268 Z";
-
-  const rightLens =
-    "M 178 245 " +
-    "Q 180 231 194 230 " +
-    "L 257 230 " +
-    "Q 272 231 274 245 " +
-    "L 273 269 " +
-    "Q 270 282 255 282 " +
-    "L 196 282 " +
-    "Q 181 281 178 267 Z";
-
-  const bridge =
-    "M 157 247 " +
-    "Q 167 240 178 246";
-
-  const templeL =
-    "M 61 253 Q 49 256 43 263";
-
-  const templeR =
-    "M 274 253 Q 286 256 292 263";
-
-  // 少しラフさを出すため二重に引く
-  addRoughPath(glassesGroup, leftLens, { width: 11, opacity: 1 });
-  addRoughPath(glassesGroup, rightLens, { width: 11, opacity: 1 });
-  addRoughPath(glassesGroup, bridge, { width: 9, opacity: 1 });
-  addRoughPath(glassesGroup, templeL, { width: 7.5, opacity: 1 });
-  addRoughPath(glassesGroup, templeR, { width: 7.5, opacity: 1 });
-
-  addRoughPath(glassesGroup, leftLens, { width: 7, opacity: 0.28, stroke: "#272322" });
-  addRoughPath(glassesGroup, rightLens, { width: 7, opacity: 0.28, stroke: "#272322" });
-  addRoughPath(glassesGroup, bridge, { width: 5.5, opacity: 0.28, stroke: "#272322" });
-
-  stage.appendChild(nose);
+  const mouth = document.createElement("img");
+  mouth.src = asset("mouth_neutral");
+  mouth.draggable = false;
+  mouth.style.cssText = `
+    position:absolute;
+    left:31.0%;
+    top:73.9%;
+    width:36.4%;
+    height:auto;
+    transform-origin:50% 50%;
+    opacity:0;
+    pointer-events:none;
+    will-change:transform, opacity;
+  `;
   stage.appendChild(mouth);
 
-  // ===== Controls =====
+  function setMouth(name, visible) {
+    if (!visible) {
+      mouth.style.opacity = "0";
+      mouthBaseCover.style.opacity = "0";
+      return;
+    }
+    mouth.src = asset(name);
+    mouth.style.opacity = "1";
+    mouthBaseCover.style.opacity = "1";
+  }
 
+  function chooseMouth(target) {
+    const jaw = target.jaw;
+    const smile = target.smile;
+    const pucker = target.pucker;
+
+    // まずは「静止時の元画像完全一致」を優先
+    if (jaw < 0.12 && smile < 0.26) {
+      setMouth("mouth_neutral", false);
+      return;
+    }
+
+    let name = "mouth_e";
+
+    if (jaw < 0.18 && smile >= 0.26) {
+      name = "mouth_smile";
+    } else if (jaw > 0.58 && pucker > 0.24) {
+      name = "mouth_surprise";
+    } else if (jaw > 0.44) {
+      name = "mouth_a";
+    } else if (jaw > 0.26 && pucker > 0.28) {
+      name = "mouth_o";
+    } else if (jaw > 0.22 && pucker > 0.18) {
+      name = "mouth_u";
+    } else if (jaw > 0.18) {
+      name = "mouth_e";
+    }
+
+    setMouth(name, true);
+  }
+
+  // =========================
+  // Controls
+  // =========================
   const controls = document.createElement("div");
   controls.style.cssText = `
     position:absolute;
@@ -293,8 +203,9 @@ const OVT = (() => {
   root.appendChild(controls);
   document.documentElement.appendChild(root);
 
-  // ===== State =====
-
+  // =========================
+  // State
+  // =========================
   let faceLandmarker = null;
   let video = null;
   let stream = null;
@@ -311,13 +222,9 @@ const OVT = (() => {
     roll: 0,
     yaw: 0,
     pitch: 0,
-    blinkL: 0,
-    blinkR: 0,
     jaw: 0,
     smile: 0,
     pucker: 0,
-    browL: 0,
-    browR: 0,
   };
 
   const target = { ...state };
@@ -332,40 +239,9 @@ const OVT = (() => {
 
   const s = (m, name) => m[name] || 0;
 
-  function chooseMouth() {
-    const jaw = target.jaw;
-    const smile = target.smile;
-    const pucker = target.pucker;
-
-    let name = "mouth_neutral";
-
-    // 笑顔でも目は変えず、口だけ差し替え
-    if (jaw < 0.16 && smile > 0.28) {
-      name = "mouth_smile";
-    } else if (jaw > 0.57 && pucker > 0.25) {
-      name = "mouth_surprise";
-    } else if (jaw > 0.42) {
-      name = "mouth_a";
-    } else if (jaw > 0.24 && pucker > 0.28) {
-      name = "mouth_o";
-    } else if (jaw > 0.24) {
-      name = "mouth_e";
-    } else {
-      name = "mouth_neutral";
-    }
-
-    mouth.src = asset(name);
-  }
-
-  function setEyeOpen(eye, blink) {
-    const sy = Math.max(0.08, 1 - blink * 0.92);
-    const ty = eye.baseCy * (1 - sy);
-    eye.openGroup.setAttribute(
-      "transform",
-      `translate(0 ${ty.toFixed(2)}) scale(1 ${sy.toFixed(3)})`
-    );
-  }
-
+  // =========================
+  // Render
+  // =========================
   function render() {
     const k = 0.22;
 
@@ -373,43 +249,31 @@ const OVT = (() => {
       state[key] = lerp(state[key], target[key], k);
     }
 
+    // 顔全体を少しだけ動かす
     stage.style.transform =
       `translate3d(${state.x}px, ${state.y}px, 0) ` +
       `rotate(${state.roll}deg) ` +
-      `skewX(${state.yaw * -1.1}deg) ` +
-      `scaleX(${1 - Math.abs(state.yaw) * 0.012}) ` +
-      `scaleY(${1 + state.pitch * 0.004})`;
+      `skewX(${state.yaw * -0.8}deg) ` +
+      `scaleX(${1 - Math.abs(state.yaw) * 0.008}) ` +
+      `scaleY(${1 + state.pitch * 0.003})`;
 
-    // 黒目の移動量は控えめ
-    const eyeShiftX = state.yaw * 3.4;
-    const eyeShiftY = state.pitch * 1.0;
+    chooseMouth(state);
 
-    leftEye.iris.setAttribute("cx", (leftEye.baseCx + eyeShiftX).toFixed(2));
-    leftEye.iris.setAttribute("cy", (leftEye.baseCy + eyeShiftY).toFixed(2));
-    leftEye.pupil.setAttribute("cx", (leftEye.baseCx + eyeShiftX).toFixed(2));
-    leftEye.pupil.setAttribute("cy", (leftEye.baseCy + 0.7 + eyeShiftY).toFixed(2));
-
-    rightEye.iris.setAttribute("cx", (rightEye.baseCx + eyeShiftX).toFixed(2));
-    rightEye.iris.setAttribute("cy", (rightEye.baseCy + eyeShiftY).toFixed(2));
-    rightEye.pupil.setAttribute("cx", (rightEye.baseCx + eyeShiftX).toFixed(2));
-    rightEye.pupil.setAttribute("cy", (rightEye.baseCy + 0.7 + eyeShiftY).toFixed(2));
-
-    setEyeOpen(leftEye, state.blinkL);
-    setEyeOpen(rightEye, state.blinkR);
-
-    browL.style.transform = `translateY(${-state.browL * 3.0}px)`;
-    browR.style.transform = `translateY(${-state.browR * 3.0}px)`;
+    const mouthScaleX = 1 + state.jaw * 0.025;
+    const mouthScaleY = 1 + state.jaw * 0.045;
+    const mouthShiftY = state.jaw * 1.5;
 
     mouth.style.transform =
-      `scale(${1 + state.jaw * 0.015}, ${1 + state.jaw * 0.025})`;
+      `translateY(${mouthShiftY}px) scale(${mouthScaleX}, ${mouthScaleY})`;
 
     raf = requestAnimationFrame(render);
   }
 
   render();
 
-  // ===== Face tracking =====
-
+  // =========================
+  // Face tracking
+  // =========================
   async function ensureTracker() {
     if (faceLandmarker || loading) return;
 
@@ -514,16 +378,12 @@ const OVT = (() => {
       roll: 0,
       yaw: 0,
       pitch: 0,
-      blinkL: 0,
-      blinkR: 0,
       jaw: 0,
       smile: 0,
       pucker: 0,
-      browL: 0,
-      browR: 0
     });
 
-    mouth.src = asset("mouth_neutral");
+    setMouth("mouth_neutral", false);
   }
 
   function trackLoop() {
@@ -551,23 +411,21 @@ const OVT = (() => {
           const eyeDist = Math.max(0.001, Math.hypot(eyeDx, eyeDy));
 
           const roll = Math.atan2(eyeDy, eyeDx) * 180 / Math.PI;
-          const yaw = clamp((nosePt.x - midX) / eyeDist * 2.7, -1, 1);
-          const pitch = clamp(((nosePt.y - midY) / eyeDist - 0.72) * 1.25, -1, 1);
+          const yaw = clamp((nosePt.x - midX) / eyeDist * 2.3, -1, 1);
+          const pitch = clamp(((nosePt.y - midY) / eyeDist - 0.72) * 1.15, -1, 1);
 
-          target.roll = clamp(roll, -12, 12);
+          target.roll = clamp(roll, -9, 9);
           target.yaw = yaw;
           target.pitch = pitch;
 
-          target.x = clamp((0.5 - nosePt.x) * 20, -7.5, 7.5);
-          target.y = clamp((nosePt.y - 0.5) * 12, -5, 5);
+          target.x = clamp((0.5 - nosePt.x) * 15, -6, 6);
+          target.y = clamp((nosePt.y - 0.5) * 10, -4, 4);
         }
 
         const cats = res.faceBlendshapes?.[0]?.categories;
         if (cats) {
           const m = scoreMap(cats);
 
-          target.blinkL = s(m, "eyeBlinkLeft");
-          target.blinkR = s(m, "eyeBlinkRight");
           target.jaw = s(m, "jawOpen");
           target.smile =
             (s(m, "mouthSmileLeft") + s(m, "mouthSmileRight")) * 0.5;
@@ -575,16 +433,6 @@ const OVT = (() => {
             s(m, "mouthPucker"),
             s(m, "mouthFunnel")
           );
-
-          target.browL =
-            Math.max(s(m, "browInnerUp"), s(m, "browOuterUpLeft")) -
-            s(m, "browDownLeft");
-
-          target.browR =
-            Math.max(s(m, "browInnerUp"), s(m, "browOuterUpRight")) -
-            s(m, "browDownRight");
-
-          chooseMouth();
         }
       } catch (e) {
         console.warn("[occhan VTuber] frame error", e);
@@ -594,8 +442,9 @@ const OVT = (() => {
     requestAnimationFrame(trackLoop);
   }
 
-  // ===== Drag / resize =====
-
+  // =========================
+  // Drag / resize
+  // =========================
   let pointers = new Map();
   let startRect = null;
   let startDist = 0;
@@ -729,8 +578,8 @@ const OVT = (() => {
   const idle = now => {
     if (!tracking) {
       const t = (now - t0) / 1000;
-      target.y = Math.sin(t * 1.7) * 1.0;
-      target.roll = Math.sin(t * 0.85) * 0.55;
+      target.y = Math.sin(t * 1.7) * 0.8;
+      target.roll = Math.sin(t * 0.85) * 0.45;
     }
     idleRaf = requestAnimationFrame(idle);
   };
