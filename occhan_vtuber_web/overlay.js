@@ -107,15 +107,15 @@ const OVT = (() => {
   // 初期位置では元画像と完全一致する。
   const pupilL = makePupil(
     "pupil_l_exact.png",
-    34.7561,
-    60.5392,
+    40.7561,
+    64.5392,
     10.0610
   );
   
   const pupilR = makePupil(
     "pupil_r_exact.png",
     65.8537,
-    60.5392,
+    64.5392,
     10.0610
   );
 
