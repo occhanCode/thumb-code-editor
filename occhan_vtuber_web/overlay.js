@@ -49,7 +49,7 @@ const OVT = (() => {
   const face = document.createElement("img");
 
   face.src =
-    asset("face_mouthless_exact_transparent_v2.png");
+    asset("face_mouthless_pupilless_exact.png");
 
   face.draggable = false;
 
@@ -80,6 +80,44 @@ const OVT = (() => {
   // =========================================================
 
   const SVG_NS = "http://www.w3.org/2000/svg";
+
+  const makePupil = (src, left, top, width) => {
+    const img = document.createElement("img");
+  
+    img.src = asset(src);
+    img.draggable = false;
+  
+    img.style.cssText = `
+      position:absolute;
+      left:${left}%;
+      top:${top}%;
+      width:${width}%;
+      height:auto;
+      pointer-events:none;
+      will-change:transform;
+      transform-origin:50% 50%;
+    `;
+  
+    stage.appendChild(img);
+  
+    return img;
+  };
+  
+  // 元画像からそのまま抜いた黒目。
+  // 初期位置では元画像と完全一致する。
+  const pupilL = makePupil(
+    "pupil_l_exact.png",
+    34.7561,
+    60.5392,
+    10.0610
+  );
+  
+  const pupilR = makePupil(
+    "pupil_r_exact.png",
+    65.8537,
+    60.5392,
+    10.0610
+  );
 
   const blinkSvg =
     document.createElementNS(
@@ -183,14 +221,14 @@ const OVT = (() => {
 
   // 元画像上の目の位置に合わせた値
   const eyeLeft = createBlinkEye({
-    cx: 128,
+    cx: 134,
     cy: 264,
     rx: 29,
     ry: 22
   });
   
   const eyeRight = createBlinkEye({
-    cx: 231,
+    cx: 237,
     cy: 264,
     rx: 29,
     ry: 22
@@ -433,17 +471,20 @@ const OVT = (() => {
   const state = {
     x: 0,
     y: 0,
-
+  
     roll: 0,
     yaw: 0,
     pitch: 0,
-
+  
     jaw: 0,
     smile: 0,
     pucker: 0,
-
+  
     blinkL: 0,
     blinkR: 0,
+  
+    gazeX: 0,
+    gazeY: 0,
   };
 
   const target = {
@@ -542,6 +583,20 @@ const OVT = (() => {
         blinkK
       );
 
+    state.gazeX =
+      lerp(
+        state.gazeX,
+        target.gazeX,
+        0.18
+      );
+    
+    state.gazeY =
+      lerp(
+        state.gazeY,
+        target.gazeY,
+        0.18
+      );
+
     // -------------------------
     // Whole face
     // -------------------------
@@ -574,6 +629,28 @@ const OVT = (() => {
           0.0018
         }
       )`;
+
+    // 元画像の黒目そのものをほんの少しだけ移動。
+    // 本人感を壊さないよう最大約2.5px。
+    const pupilX =
+      clamp(
+        state.gazeX,
+        -2.5,
+        2.5
+      );
+    
+    const pupilY =
+      clamp(
+        state.gazeY,
+        -1.8,
+        1.8
+      );
+    
+    pupilL.style.transform =
+      `translate(${pupilX}px, ${pupilY}px)`;
+    
+    pupilR.style.transform =
+      `translate(${pupilX}px, ${pupilY}px)`;
 
     // -------------------------
     // Blink
@@ -916,6 +993,9 @@ const OVT = (() => {
 
         blinkL: 0,
         blinkR: 0,
+
+        gazeX: 0,
+        gazeY: 0,
       }
     );
   }
@@ -1073,6 +1153,46 @@ const OVT = (() => {
           const map =
             scoreMap(
               categories
+            );
+
+          const lookX =
+            (
+              (
+                score(map, "eyeLookInRight") -
+                score(map, "eyeLookOutRight")
+              ) +
+              (
+                score(map, "eyeLookOutLeft") -
+                score(map, "eyeLookInLeft")
+              )
+            ) * 0.5;
+          
+          const lookY =
+            (
+              (
+                score(map, "eyeLookDownRight") -
+                score(map, "eyeLookUpRight")
+              ) +
+              (
+                score(map, "eyeLookDownLeft") -
+                score(map, "eyeLookUpLeft")
+              )
+            ) * 0.5;
+          
+          // あえてかなり弱くする。
+          // 大きく動かすと元アイコン感が失われる。
+          target.gazeX =
+            clamp(
+              lookX * 7,
+              -2.5,
+              2.5
+            );
+          
+          target.gazeY =
+            clamp(
+              lookY * 5,
+              -1.8,
+              1.8
             );
 
           target.jaw =
