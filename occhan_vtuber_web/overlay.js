@@ -221,14 +221,14 @@ const OVT = (() => {
 
   // 元画像上の目の位置に合わせた値
   const eyeLeft = createBlinkEye({
-    cx: 135,
+    cx: 134,
     cy: 264,
     rx: 29,
     ry: 22
   });
   
   const eyeRight = createBlinkEye({
-    cx: 238,
+    cx: 237,
     cy: 264,
     rx: 29,
     ry: 22
